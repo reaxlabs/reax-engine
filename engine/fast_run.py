@@ -27,7 +27,8 @@ ap.add_argument("--lat-n", type=int, default=50)
 ap.add_argument("--fuse", default="1")
 ap.add_argument("--compile", default="0")
 ap.add_argument("--fused-quant", default="1")
-ap.add_argument("--nvfp4", default="", help="comma list of layer-group suffixes in NVFP4: gu,down,in_qkvz,out,qkv,o")
+ap.add_argument("--nvfp4", default="", help="comma list of NVFP4 groups gu,down,in_qkvz,out,qkv,o[,q,kv], each optionally restricted to layers: gu@4-59 or gu@4-30+40-59")
+ap.add_argument("--nvfp4-scales", default="", help="JSON {layer.group: calibrated activation amax} from modelopt_export.py (static NVFP4 global scale)")
 ap.add_argument("--conv", default="fla")
 ap.add_argument("--sort", action="store_true", help="sort by length before packing (throughput only)")
 a = ap.parse_args()
@@ -42,7 +43,7 @@ tok_s = time.time() - t0
 t0 = time.time()
 eng = PplxEngine(a.model, linear_mode=a.linear, attn_impl=a.attn, gva_native=a.gva,
                  fp8_skip=tuple(s for s in a.fp8_skip.split(",") if s), fuse=a.fuse, conv_impl=a.conv, compile=a.compile, fused_quant=a.fused_quant,
-                 nvfp4_groups=tuple("." + g for g in a.nvfp4.split(",") if g))
+                 nvfp4_groups=tuple(g for g in a.nvfp4.split(",") if g), nvfp4_scales=a.nvfp4_scales or None)
 load_s = time.time() - t0
 print(f"tokenised {len(rows)} in {tok_s:.1f}s; engine loaded in {load_s:.0f}s; mem {torch.cuda.memory_allocated()/2**30:.1f} GiB",
       flush=True)

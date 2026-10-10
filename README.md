@@ -24,5 +24,6 @@ python engine/server.py --model ./model --backend engine --linear fp8 --compile 
 curl -s localhost:8741/v1/systemone -H 'content-type: application/json' -d '{"model":"pplx","state":"Order #123 arrived broken.",
   "questions":{"team":{"type":"choice","instructions":"Which team handles this?","criteria":{"billing":"refunds","support":"technical issues","sales":"buying"}}}}'
 ```
-See DEPLOY.md for hardware, memory and operational notes. Validated on RTX PRO 6000 Blackwell (sm_120); also measured
+An experimental calibrated NVFP4 (4-bit) mode reaches ~21.8 decisions/s on the same GPU at the same benchmark scores
+within noise (RESULTS.md). See DEPLOY.md for hardware, memory and operational notes. Validated on RTX PRO 6000 Blackwell (sm_120); also measured
 on H100, H200, B200 and RTX 5090 (32 GB cards: `CIE_LAZY_LOAD=1`).

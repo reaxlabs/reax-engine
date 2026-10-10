@@ -55,8 +55,8 @@ class EngineBackend:
     def __init__(self, a):
         from pplx_engine import PplxEngine
         self.pr = Prompter(a.model)
-        self.eng = PplxEngine(a.model, linear_mode=a.linear, compile=a.compile, gva_native=a.gva,
-                              fp8_skip=tuple(x for x in a.fp8_skip.split(",") if x))
+        self.eng = PplxEngine(a.model, linear_mode=a.linear, compile=a.compile, fp8_skip=tuple(x for x in a.fp8_skip.split(",") if x),
+                              gva_native=a.gva, nvfp4_groups=tuple(g for g in a.nvfp4.split(",") if g), nvfp4_scales=a.nvfp4_scales or None)
         self.budget = a.budget
         self.max_wait = a.max_wait_ms / 1000
         a_warm_steps = a.warm_steps
@@ -214,6 +214,8 @@ def main():
     ap.add_argument("--compile", default="1")
     ap.add_argument("--fp8-skip", default="")
     ap.add_argument("--gva", default="1", help="native grouped-value heads in fla (bit-identical, faster)")
+    ap.add_argument("--nvfp4", default="", help="NVFP4 groups, e.g. gu@4-59,down@4-59 (see fast_run.py)")
+    ap.add_argument("--nvfp4-scales", default="", help="JSON of calibrated activation amax per layer.group")
     ap.add_argument("--budget", type=int, default=16384)
     ap.add_argument("--max-wait-ms", type=float, default=0.0, help="extra wait to fill a step (0 = take what is queued)")
     ap.add_argument("--port", type=int, default=8741)

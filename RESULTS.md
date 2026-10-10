@@ -33,7 +33,21 @@ probabilities vary slightly with co-batched requests (mean |dp| ~1e-3), as with 
   throughput gain; all heavy kernels are CUTLASS/Triton either way.
 - Mature engines on the same architecture (causal attention, i.e. less work and not usable for this model): vLLM 0.31
   1.02-1.085x, SGLang 0.98x, TensorRT-LLM 0.81x of our throughput.
-- Naive NVFP4 (W4A4) on all MLPs: +8 % but measurably larger drift; calibrated mixed-precision 4-bit is work in progress.
+- Naive (uncalibrated, dynamic-scale) NVFP4 on the MLPs: only +8 %; calibrated static scales are what makes 4-bit pay off (below).
+- A short "healing" LoRA distillation from the bf16 model on top of the 4-bit variant: no measurable score or agreement gain,
+  and the unmerged adapter cost 22 % throughput.
+
+## Experimental: calibrated NVFP4 (4-bit) variant
+Static activation scales calibrated on 512 training-split decisions (not benchmark items; file
+engine/scales/nvfp4-act-amax-max512.json); NVFP4 for the MLP and DeltaNet projections of layers 4-59, FP8 elsewhere.
+Same harness and pairing as above (16-core host):
+| | decisions/s (DI sample) | Decision Index sample | JevBench public capability | answers identical to reference |
+|---|---|---|---|---|
+| reference server (bf16) | 5.5 | 58.02 | 84.70 | - |
+| REAX Engine FP8 | 15.5 | 57.98 | 84.39 | 99.1 % / 99.7 % |
+| REAX Engine NVFP4 mid-layers | 21.8 | 58.30 (CI of delta -1.13..+2.22) | 84.17 (CI -1.91..+1.20) | ~97.5 % / ~98.5 % |
+Scores stay within measurement noise; about 2-3 % of individual answers differ from the bf16 model. Run with
+`--nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json` (Blackwell GPUs only).
 
 ## Other GPUs (FP8, same engine)
 B200 33.3, H200 22.5, RTX PRO 6000 15.5, RTX 5090 (32 GB, lazy weight loading) 10.3 decisions/s.

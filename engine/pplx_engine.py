@@ -86,18 +86,38 @@ class Prompter:
         return self.tok(text, add_special_tokens=False)["input_ids"], len(options(question)[0])
 
 
+try:
+    import fp4_triton
+except ImportError:  # pragma: no cover
+    fp4_triton = None
+
+
+class NV4:
+    """A pre-quantized NVFP4 activation (packed fp4x2, swizzled block scales) produced by a fused norm kernel."""
+    __slots__ = ("q", "s")
+
+    def __init__(self, q, s):
+        self.q, self.s = q, s
+
+
 # ---------------------------------------------------------------- linear backends
 class Linear:
     """y = x @ W^T in one of: bf16 | fp8 (W8A8 dynamic per-token x per-channel)."""
 
-    def __init__(self, w: torch.Tensor, mode: str = "bf16"):
+    def __init__(self, w: torch.Tensor, mode: str = "bf16", x_amax: float | None = None):
         self.mode = mode
         self.out_features, self.in_features = w.shape
+        self.x_amax = None  # nvfp4: calibrated static activation amax (ModelOpt) -> no per-call reduction
         if mode == "bf16":
             self.w = w.contiguous()
         elif mode == "nvfp4":
             from fp4 import quantize_nvfp4
             self.wq, self.wsc, self.wg = quantize_nvfp4(w)
+            if x_amax is not None and fp4_triton is not None:
+                from fp4_triton import global_scale
+                self.x_amax = torch.tensor(float(x_amax), device=w.device, dtype=torch.float32)
+                self.xg = global_scale(self.x_amax)  # static activation global scale [1]
+                self.xg0, self.wg0 = self.xg.reshape(()), self.wg.float().reshape(())
         elif mode == "fp8":
             wf = w.float()
             s = wf.abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / 448.0
@@ -111,8 +131,13 @@ class Linear:
         if self.mode == "bf16":
             return F.linear(x, self.w)
         if self.mode == "nvfp4":
+            if isinstance(q, NV4):
+                return self.mm4(q.q, q.s)
             if x is None:  # only a pre-quantized fp8 input was passed: dequantize
                 x = (q[0].float() * q[1]).to(torch.bfloat16)
+            if self.x_amax is not None:
+                xq, xs, _ = fp4_triton.nvfp4_quant_static(x.contiguous(), self.xg)
+                return self.mm4(xq, xs)
             xq, xs, xg = K.nvfp4_quant(x)
             y = torch._scaled_mm(xq, self.wq.t(), scale_a=xs, scale_b=self.wsc, out_dtype=torch.bfloat16)
             return y * (xg * self.wg).to(torch.bfloat16)
@@ -122,11 +147,21 @@ class Linear:
         return torch._scaled_mm(x8, self.w8, scale_a=xs, scale_b=self.ws, out_dtype=torch.bfloat16)
 
 
+    def mm4(self, xq, xs):
+        """NVFP4 GEMM of a pre-quantized input; both per-tensor global scales are applied in the GEMM epilogue
+        (torch.nn.functional.scaled_mm two-level recipe), so there is no extra pass over the output."""
+        S, R = F.ScalingType, F.SwizzleType
+        return F.scaled_mm(xq, self.wq.t(), scale_a=[xs, self.xg0], scale_recipe_a=[S.BlockWise1x16, S.TensorWise],
+                           scale_b=[self.wsc, self.wg0], scale_recipe_b=[S.BlockWise1x16, S.TensorWise],
+                           swizzle_a=[R.SWIZZLE_32_4_4, R.NO_SWIZZLE], swizzle_b=[R.SWIZZLE_32_4_4, R.NO_SWIZZLE],
+                           output_dtype=torch.bfloat16)
+
+
 class MultiLinear:
     """Unfused projections (one GEMM per original weight), outputs concatenated: numerics identical to HF."""
 
-    def __init__(self, ws, mode="bf16"):
-        self.parts = [Linear(w, mode) for w in ws]
+    def __init__(self, ws, mode="bf16", x_amax=None):
+        self.parts = [Linear(w, mode, x_amax) for w in ws]
         self.mode = mode
 
     def __call__(self, x, q=None):
@@ -320,11 +355,11 @@ class K:
     gate_mul_q = staticmethod(gate_mul_q)
 
     @staticmethod
-    def nvfp4_quant(x):
+    def nvfp4_quant(x, amax=None):
         from fp4 import quantize_nvfp4
         if not hasattr(K, "_nvq"):
             K._nvq = torch.compile(quantize_nvfp4, dynamic=True) if K._compiled else quantize_nvfp4
-        return K._nvq(x)
+        return K._nvq(x, amax)
 
     _compiled = False
 
@@ -345,7 +380,7 @@ def rotate_half(x):
 # ---------------------------------------------------------------- model
 class PplxEngine:
     def __init__(self, model_dir, device="cuda", linear_mode="bf16", attn_impl="auto", gva_native=False,
-                 fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=()):
+                 fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None):
         from safetensors import safe_open
         self.dir = Path(model_dir)
         cfg = json.loads((self.dir / "config.json").read_text())["text_config"]
@@ -377,6 +412,10 @@ class PplxEngine:
                            and not nvfp4_groups and add_rms_q_triton is not None)
         self.gu_tensorwise = (os.environ.get("PPLX_GU_TENSORWISE", "1") == "1" and linear_mode == "fp8"
                               and silu_mul_q_scaled_triton is not None)
+        nvf = int(os.environ.get("PPLX_NV_FUSE", "3")) if fp4_triton is not None else 0  # bit 1: add+rms+quant, bit 2: gated-norm+quant
+        self.nv_fuse, self.nv_fuse_gn = bool(nvf & 1), bool(nvf & 2)
+        self.nv_check = os.environ.get("PPLX_NV_CHECK") == "1"
+        self._chk_stats = {}
         self._one = torch.ones((), device=device, dtype=torch.float32)
         self.n_streams = int(os.environ.get("PPLX_STREAMS", "1"))
         self.stream_min_tokens = int(os.environ.get("PPLX_STREAM_MIN_TOKENS", "4096"))
@@ -417,13 +456,22 @@ class PplxEngine:
         self.embed = W.pop("embed_tokens.weight")
         self.norm_w = W.pop("norm.weight")
 
+        # nvfp4 group specs: "gu" (all layers) or "gu@4-59" / "gu@4-30+40-59" (inclusive layer ranges); legacy ".gu" ok
+        specs = []
+        for g in nvfp4_groups:
+            g, _, rng = g.lstrip(".").partition("@")
+            specs.append((g, [tuple(map(int, r.split("-"))) for r in rng.split("+")] if rng else None))
+        self.nvfp4_scales = json.loads(Path(nvfp4_scales).read_text()) if nvfp4_scales else {}
+
         def lin(w, name):
             mode = "bf16" if any(s in name for s in fp8_skip) else linear_mode
-            if any(name.endswith(g) for g in nvfp4_groups):
+            idx, _, kind = name.partition(".")
+            if any(kind == g and (r is None or any(a <= int(idx) <= b for a, b in r)) for g, r in specs):
                 mode = "nvfp4"
+            xa = self.nvfp4_scales.get(name) if mode == "nvfp4" else None
             if isinstance(w, list):
-                return Linear(torch.cat(w, 0), mode) if fuse else MultiLinear(w, mode)
-            return Linear(w, mode)
+                return Linear(torch.cat(w, 0), mode, xa) if fuse else MultiLinear(w, mode, xa)
+            return Linear(w, mode, xa)
 
         self.layers = []
         for i in range(self.n_layers):
@@ -465,6 +513,20 @@ class PplxEngine:
         torch.cuda.empty_cache()
         self.inter = cfg["intermediate_size"]
         self._pick_attn()
+
+    def _chk(self, name, a, b):
+        n = (a.view(torch.uint8) != b.view(torch.uint8)).sum().item()
+        self._chk_stats[name] = self._chk_stats.get(name, 0) + n
+        self._chk_stats[name + "_tot"] = self._chk_stats.get(name + "_tot", 0) + a.numel()
+
+    @staticmethod
+    def _nv_ok(*lins):
+        return all(l.mode == "nvfp4" and l.x_amax is not None for l in lins)
+
+    @staticmethod
+    def _first_mode(L):
+        """linear mode of the first projection that consumes the layer's pre-norm output"""
+        return (L["in_qkvz"] if L["type"] == "linear_attention" else L.get("qkv") or L["q_only"]).mode
 
     # ------------------------------------------------------------ attention backend (noncausal, varlen, GQA)
     def _pick_attn(self):
@@ -542,6 +604,13 @@ class PplxEngine:
             k = k.repeat_interleave(r, dim=2)
         o, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta, initial_state=None, output_final_state=False,
                                       use_qk_l2norm_in_kernel=True, cu_seqlens=cu)
+        if self.nv_fuse_gn and L["out"].mode == "nvfp4" and L["out"].x_amax is not None:
+            gq, gs = fp4_triton.gated_norm_nvfp4_static(o, z, L["gnorm"], self.eps, L["out"].xg, T)
+            if self.nv_check:
+                y = K.gated_norm(o.reshape(-1, self.lv), z.reshape(-1, self.lv), L["gnorm"], self.eps).reshape(T, -1)
+                rq, rs_, _ = fp4_triton.nvfp4_quant_static(y.contiguous(), L["out"].xg)
+                self._chk("gated", rq, gq)
+            return L["out"].mm4(gq, gs)
         if xq is not None and L["out"].mode == "fp8":
             if self.triton_gnq:
                 return L["out"](None, gated_norm_q_triton(o, z, L["gnorm"], self.eps, T))
@@ -596,6 +665,14 @@ class PplxEngine:
             # silu*mul*quant kernel that reads the output anyway
             gu = torch._scaled_mm(xq[0], L["gu"].w8, scale_a=self._one, scale_b=self._one, out_dtype=torch.bfloat16)
             return L["down"](None, silu_mul_q_scaled_triton(gu, xq[1], L["gu"].ws, self.inter))
+        if L["gu"].mode == "nvfp4" and L["down"].mode == "nvfp4" and L["gu"].x_amax is not None and L["down"].x_amax is not None:
+            # static-scale NVFP4 MLP: quant kernels write the swizzled block scales directly, silu*mul fused with the down quant
+            if isinstance(xq, NV4):
+                gq, gs = xq.q, xq.s
+            else:
+                gq, gs, _ = fp4_triton.nvfp4_quant_static(x, L["gu"].xg)
+            hq, hs, _ = fp4_triton.silu_mul_nvfp4_static(L["gu"].mm4(gq, gs), L["down"].xg)
+            return L["down"].mm4(hq, hs)
         gu = L["gu"](x, xq)
         if xq is not None and L["down"].mode == "fp8":
             return L["down"](None, K.silu_mul_q(gu, self.inter))
@@ -665,7 +742,7 @@ class PplxEngine:
         cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
         h = F.embedding(ids, self.embed)
         fq = self.linear_mode == "fp8" and self.fused_quant
-        if fq:
+        if fq and self._first_mode(self.layers[0]) == "fp8":
             x, x8, xs = K.rms_q(h, self.layers[0]["in_norm"], self.eps)
             xq = (x8, xs)
         else:
@@ -680,24 +757,38 @@ class PplxEngine:
             else:
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq)
                 h = h[last_idx]
-            if fq and self.triton_arq:
+            if self.nv_fuse and self._nv_ok(L["gu"], L["down"]):
+                if self.nv_check:
+                    h0, x0 = K.add_rms(h, d, L["post_norm"], self.eps)
+                    rq, _, _ = fp4_triton.nvfp4_quant_static(x0.contiguous(), L["gu"].xg)
+                h, x, q4, s4 = fp4_triton.add_rms_nvfp4_static(h, d, L["post_norm"], self.eps, L["gu"].xg, False)
+                if self.nv_check:
+                    self._chk("add_rms_post", rq, q4)
+                xq = NV4(q4, s4)
+            elif fq and self.triton_arq:
                 h, x, x8, xs = add_rms_q_triton(h, d, L["post_norm"], self.eps, False)
                 xq = (x8, xs)
-            elif fq:
+            elif fq and L["gu"].mode == "fp8":
                 h, x, x8, xs = K.add_rms_q(h, d, L["post_norm"], self.eps)
                 xq = (x8, xs)
             else:
                 h, x = K.add_rms(h, d, L["post_norm"], self.eps)
+                xq = None
             d = self._mlp(L, x, xq)
-            if fq and not last and self.triton_arq:
+            if self.nv_fuse and not last and self.layers[i + 1]["type"] == "linear_attention" and self._nv_ok(self.layers[i + 1]["in_qkvz"]):
+                nxt = self.layers[i + 1]  # x (bf16) is still read by the unquantized in_ba projection
+                h, x, q4, s4 = fp4_triton.add_rms_nvfp4_static(h, d, nxt["in_norm"], self.eps, nxt["in_qkvz"].xg, True)
+                xq = NV4(q4, s4)
+            elif fq and not last and self.triton_arq:
                 nxt = self.layers[i + 1]
                 h, x, x8, xs = add_rms_q_triton(h, d, nxt["in_norm"], self.eps, nxt["type"] == "linear_attention")
                 xq = (x8, xs)
-            elif fq and not last:
+            elif fq and not last and self._first_mode(self.layers[i + 1]) == "fp8":
                 h, x, x8, xs = K.add_rms_q(h, d, self.layers[i + 1]["in_norm"], self.eps)
                 xq = (x8, xs)
             else:
                 h, x = K.add_rms(h, d, self.norm_w if last else self.layers[i + 1]["in_norm"], self.eps)
+                xq = None
         return F.linear(x, self.readout).float()
 
     def probs(self, logits, counts, temperature=None):
