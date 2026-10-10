@@ -1,0 +1,15 @@
+REAX Engine
+Copyright 2026 The REAX Engine authors. Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product serves the model perplexity-ai/pplx-decider-v1.1-27b (Apache License 2.0, Copyright Perplexity AI;
+derived from Qwen/Qwen3.8-27B, Apache License 2.0). Model weights are NOT included; they are downloaded from
+Hugging Face by tools/setup.sh. The model's own NOTICE applies to the weights.
+
+engine/pplx_engine.py contains prompt construction and answer shaping adapted from the model's reference
+implementation (source/src/autojev/model.py in perplexity-ai/pplx-decider-v1.1-27b, Apache License 2.0).
+Modifications: reimplemented as a standalone prefill-only engine (packed variable-length batches, FP8 GEMMs,
+fused kernels, continuous-batching HTTP server).
+
+Runtime dependencies (not bundled): PyTorch (BSD-3-Clause), flash-linear-attention (MIT), Triton (MIT),
+Hugging Face transformers / safetensors / huggingface_hub (Apache-2.0).
+No affiliation with or endorsement by Perplexity AI or Alibaba Cloud is implied.
