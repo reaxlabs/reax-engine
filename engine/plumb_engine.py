@@ -313,6 +313,7 @@ class PlumbBackend:
 
     name = "plumb-4b"
     kind = "native-gpu"
+    encode_inline = True  # Rust tokenizer: serve.py encodes on the event loop (no thread hop)
 
     def __init__(self, model_dir=None, max_input_tokens=4096, max_batch_tokens=None, device="cuda", **engine_kw):
         from backends.base import Encoded

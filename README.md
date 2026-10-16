@@ -22,6 +22,16 @@ One registry, backend API and evaluation harness for several decision models: pp
 (vLLM-backed readout, not native kernels), Plumb-4B (native) and the CPU GGUF models. See `docs/MODELS.md`, `python -m engine.registry`,
 `bench/README.md`.
 
+`engine/serve.py` is the one server for all of them (`/internal/v1/decide`, `/v1/systemone`, `/health`):
+
+```bash
+S1M_INTERNAL_TOKEN=secret python engine/serve.py --model plumb-4b --model-dir ./plumb-4b       # or: python -m engine.serve ...
+RUNTIME_ALLOW_NO_AUTH=1 python -m engine.serve --model quyet-1.0-large --model-dir ./quyet --port 8741 --opt preset=fp8-kv
+```
+`--model` takes a registry id or alias, `--opt key=value` passes backend options, `$RUNTIME_UDS` serves on a unix socket.
+The token header (`X-S1M-Internal-Token`) is required on both routes unless `RUNTIME_ALLOW_NO_AUTH=1`.
+The legacy `engine/server.py` below serves only pplx-decider.
+
 ## Model types
 - **Readout decision models** (everything above): the question is part of the prompt, the answer is a softmax over the answer-option
   logits at the last prompt position. The engine's speed-ups (packed batches, FP8, fused kernels, vLLM or llama.cpp execution)

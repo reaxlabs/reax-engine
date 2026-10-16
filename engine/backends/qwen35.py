@@ -36,6 +36,7 @@ def _pplx_engine_module():
 
 class Qwen35Backend:
     kind = "native-gpu"
+    serve_warmup = False  # serve.py leaves warming to the `warm_steps` option (runs in the constructor)
 
     def __init__(self, model_dir, *, family="pplx", name=None, linear="fp8", compile="1", gva="1", fp8_skip="", nvfp4="",
                  nvfp4_scales="", budget=16384, max_input_tokens=None, warm_steps=0, device="cuda"):

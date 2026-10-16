@@ -108,7 +108,7 @@ def main(argv=None):
         raise SystemExit("--grouped needs --contract systemone (the s1 sidecar contract takes one question per call)")
     bodies = build_requests(items, a.grouped, a.model)
     headers = {"Content-Type": "application/json"}
-    if a.contract == "s1" and os.environ.get("S1M_INTERNAL_TOKEN"):
+    if os.environ.get("S1M_INTERNAL_TOKEN"):
         headers["X-S1M-Internal-Token"] = os.environ["S1M_INTERNAL_TOKEN"]
     path = "/v1/systemone" if a.contract == "systemone" else "/internal/v1/decide"
     results = []

@@ -31,11 +31,10 @@ for _ in $(seq 1 720); do
 done
 curl -sf -m 3 "http://127.0.0.1:$VPORT/health" >/dev/null || { echo "reax: vLLM not healthy after 24 min"; kill $VLLM_PID; exit 4; }
 export REAX_VLLM_BASE_URL="http://127.0.0.1:$VPORT"
-if python3 -c "import engine.serve" 2>/dev/null; then SERVER=engine.serve; else SERVER=engine.mini_serve; fi
 OPTS=()
 for o in ${REAX_OPTS:-}; do OPTS+=(--opt "$o"); done
 [ -n "${REAX_PRESET:-}" ] && OPTS+=(--opt "preset=${REAX_PRESET}")
-python3 -m "$SERVER" --model "$MODEL" --model-dir "$DIR" --host "${REAX_HOST:-0.0.0.0}" --port "${REAX_PORT:-8741}" "${OPTS[@]}" &
+python3 -m engine.serve --model "$MODEL" --model-dir "$DIR" --host "${REAX_HOST:-0.0.0.0}" --port "${REAX_PORT:-8741}" "${OPTS[@]}" &
 SRV_PID=$!
 trap 'kill $VLLM_PID $SRV_PID 2>/dev/null' TERM INT
 wait -n $VLLM_PID $SRV_PID

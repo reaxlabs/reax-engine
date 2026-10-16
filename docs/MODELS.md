@@ -165,7 +165,8 @@ How to read these (all of it matters):
 - Peak GPU memory is the whole device (sampled every 2 s while loaded and answering). vLLM runs reserve `gpu-memory-utilization` of the card
   whatever the model needs (Blink `bi1-memory30` needed 31 GiB in the 11 Oct study); the native engine used 35 GiB (FP8 weights 28.7 GiB + activations).
 - Rune `deterministic` is slower at c16 than the reference adapter (0.83x) although both run the same vLLM flags: the REAX server in front
-  of vLLM is a plain threaded HTTP server (`engine/mini_serve.py`), the reference adapter an async server with four workers. Not investigated.
+  of vLLM in that run was a plain threaded HTTP server (since replaced by the asyncio `engine/serve.py`, not re-measured), the reference adapter an async
+  server with four workers. Not investigated.
 - Rune `fp8-kv-seqs64` on DI: c1 12.6 -> 19.1 dec/s, c32 36.0 -> 77.6 dec/s (2.16x; the 11 Oct study measured 1.79x at c32 with another harness).
 - Blink `bi1` is slower than stock vLLM at every level (0.62-0.91x): that is the price of batch invariance, as in the 11 Oct study (70 % / 73 %).
 
