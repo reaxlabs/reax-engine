@@ -313,7 +313,8 @@ try:
 
     @triton.jit
     def _smqs_kernel(gu_ptr, xs_ptr, ws_ptr, q_ptr, s_ptr, INTER: tl.constexpr, BLOCK: tl.constexpr):
-        r = tl.program_id(0)
+        # d3 accepts >64k-token prompts: r * 2 * INTER can exceed int32.
+        r = tl.program_id(0).to(tl.int64)
         o = tl.arange(0, BLOCK)
         m = o < INTER
         xs = tl.load(xs_ptr + r)
@@ -379,11 +380,18 @@ def rotate_half(x):
 
 # ---------------------------------------------------------------- model
 class PplxEngine:
+    HOST_CU_DEFAULT = "0"
+    _trace = None
+
     def __init__(self, model_dir, device="cuda", linear_mode="bf16", attn_impl="auto", gva_native=False,
-                 fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None):
-        from safetensors import safe_open
+                 fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None,
+                 causal=False, prune_last=True, keep_full_last=False):
         self.dir = Path(model_dir)
-        cfg = json.loads((self.dir / "config.json").read_text())["text_config"]
+        raw_cfg = json.loads((self.dir / "config.json").read_text())
+        cfg = raw_cfg.get("text_config", raw_cfg)
+        self.keep_full_last = keep_full_last
+        self.prune_last = prune_last  # last layer: Q/o_proj/MLP/readout only on the last tokens (False: full layer, like HF)
+        self.causal = causal  # full-attention layers: causal (decoder LMs) or noncausal (pplx-decider)
         self.cfg = cfg
         self.device = device
         self.dtype = torch.bfloat16
@@ -406,6 +414,7 @@ class PplxEngine:
         self.linear_mode = linear_mode
         self.attn_impl = attn_impl
         self.conv_impl = conv_impl
+        self.host_cu = os.environ.get("PPLX_HOST_CU", self.HOST_CU_DEFAULT) == "1"  # pass host-side cu_seqlens to fla (saves a device sync per step)
         self.mlp_chunk = int(os.environ.get("PPLX_MLP_CHUNK", "0"))
         self.triton_gnq = os.environ.get("PPLX_TRITON_GNQ", "1") == "1"
         self.triton_arq = (os.environ.get("PPLX_TRITON_ARQ", "0") == "1" and linear_mode == "fp8" and not fp8_skip
@@ -425,36 +434,7 @@ class PplxEngine:
         if compile not in (False, "0", "false", "False", None):
             K.compile()
         fuse = fuse not in (False, "0", "false", "False")
-        dc = json.loads((self.dir / "decision_config.json").read_text())
-        self.temperature = float(dc["temperature"])
-        assert dc.get("attention_mode") == "noncausal_full_attention" and dc.get("pooling", "last") == "last"
-
-        idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
-        files = {}
-        for k, f in idx.items():
-            if k.startswith("language_model."):
-                files.setdefault(f, []).append(k)
-        if os.environ.get("CIE_LAZY_LOAD") == "1":  # opt-in: read each tensor from disk when consumed (GPU < 49 GiB with fp8)
-            class _LazyW(dict):
-                def pop(self, k, *d):
-                    f = super().pop(k)
-                    with safe_open(str(self_dir / f), framework="pt", device=device) as sf:
-                        return sf.get_tensor("language_model." + k)
-            self_dir = self.dir
-            W = _LazyW()
-            for f, keys in files.items():
-                for k in keys:
-                    W[k[len("language_model."):]] = f
-        else:
-            W = {}
-            for f, keys in files.items():
-                with safe_open(str(self.dir / f), framework="pt", device=device) as sf:
-                    for k in keys:
-                        W[k[len("language_model."):]] = sf.get_tensor(k)
-        with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
-            self.readout = sf.get_tensor("weight").to(self.dtype)
-        self.embed = W.pop("embed_tokens.weight")
-        self.norm_w = W.pop("norm.weight")
+        W = self._read_weights(device)
 
         # nvfp4 group specs: "gu" (all layers) or "gu@4-59" / "gu@4-30+40-59" (inclusive layer ranges); legacy ".gu" ok
         specs = []
@@ -494,9 +474,11 @@ class PplxEngine:
             else:
                 q = p + "self_attn."
                 wq, wk, wv = W.pop(q + "q_proj.weight"), W.pop(q + "k_proj.weight"), W.pop(q + "v_proj.weight")
-                if i == self.n_layers - 1:  # last layer: Q only for readout rows, K/V for all tokens
+                if i == self.n_layers - 1 and self.prune_last:  # last layer: Q only for readout rows, K/V for all tokens
                     L["q_only"] = lin(wq, f"{i}.q")
                     L["kv_only"] = lin([wk, wv], f"{i}.kv")
+                    if self.keep_full_last:  # also the unpruned variant (right-padded graph runs, see _core_gen(prune=False))
+                        L["qkv"] = lin([wq, wk, wv], f"{i}.qkv")
                 else:
                     L["qkv"] = lin([wq, wk, wv], f"{i}.qkv")
                 del wq, wk, wv
@@ -513,6 +495,46 @@ class PplxEngine:
         torch.cuda.empty_cache()
         self.inter = cfg["intermediate_size"]
         self._pick_attn()
+
+    def _read_weights(self, device):
+        """Raw text-model weights keyed like the HF module without its prefix ("layers.0...", "embed_tokens.weight",
+        "norm.weight"); sets self.temperature, self.readout and pops embed/norm into self.embed / self.norm_w."""
+        from safetensors import safe_open
+        dc = json.loads((self.dir / "decision_config.json").read_text())
+        self.temperature = float(dc["temperature"])
+        assert dc.get("attention_mode") == "noncausal_full_attention" and dc.get("pooling", "last") == "last"
+
+        idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
+        files = {}
+        for k, f in idx.items():
+            if k.startswith("language_model."):
+                files.setdefault(f, []).append(k)
+        if os.environ.get("CIE_LAZY_LOAD") == "1":  # opt-in: read each tensor from disk when consumed (GPU < 49 GiB with fp8)
+            class _LazyW(dict):
+                def pop(self, k, *d):
+                    f = super().pop(k)
+                    with safe_open(str(self_dir / f), framework="pt", device=device) as sf:
+                        return sf.get_tensor("language_model." + k)
+            self_dir = self.dir
+            W = _LazyW()
+            for f, keys in files.items():
+                for k in keys:
+                    W[k[len("language_model."):]] = f
+        else:
+            W = {}
+            for f, keys in files.items():
+                with safe_open(str(self.dir / f), framework="pt", device=device) as sf:
+                    for k in keys:
+                        W[k[len("language_model."):]] = sf.get_tensor(k)
+        with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
+            self.readout = sf.get_tensor("weight").to(torch.float32 if os.environ.get("PPLX_READOUT_FP32") == "1" else self.dtype)
+        self.embed = W.pop("embed_tokens.weight")
+        if os.environ.get("PPLX_EMBED_CPU") == "1":  # memory-only: the bf16 embedding table (~2.4 GiB) lives in host RAM;
+            self.embed = self.embed.cpu()  # rows are gathered on the host per step and copied (exact, same values)
+            self._emb_buf = None
+        self.norm_w = W.pop("norm.weight")
+
+        return W
 
     def _chk(self, name, a, b):
         n = (a.view(torch.uint8) != b.view(torch.uint8)).sum().item()
@@ -538,31 +560,41 @@ class PplxEngine:
             except Exception:  # noqa: BLE001
                 if self.attn_impl == "varlen":
                     raise
-        if self.attn_impl in ("sdpa", "sdpa_mask"):
+        if self.attn_impl in ("sdpa", "sdpa_mask", "sdpa_cmask"):
             self._varlen = None
+        self._tril_cache = {}
 
-    def _attend(self, q, k, v, cu_q, cu_k, max_q, max_k, lens_q, lens_k):
-        """q [Tq, H, D], k/v [Tk, KV, D] -> [Tq, H, D], noncausal within each sequence."""
+    def _attend(self, q, k, v, cu_q, cu_k, max_q, max_k, lens_q, lens_k, causal=False):
+        """q [Tq, H, D], k/v [Tk, KV, D] -> [Tq, H, D], noncausal within each sequence (causal=True: causal, only with
+        cu_q == cu_k)."""
         if self._varlen is not None:
             return self._varlen(q.contiguous(), k.contiguous(), v.contiguous(), cu_q, cu_k, max_q, max_k,
-                                scale=self.hd ** -0.5, window_size=(-1, -1), enable_gqa=True)
+                                scale=self.hd ** -0.5, window_size=(-1, 0) if causal else (-1, -1), enable_gqa=True)
         outs = []
         for (a, b), (c, d) in zip(zip(lens_q[:-1], lens_q[1:]), zip(lens_k[:-1], lens_k[1:])):
             qi = q[a:b].transpose(0, 1)[None]
             ki = k[c:d].transpose(0, 1)[None]
             vi = v[c:d].transpose(0, 1)[None]
-            if self.attn_impl == "sdpa_mask":  # HF path: bool padding mask [1,1,1,L] (forces the masked backend)
+            if self.attn_impl == "sdpa_cmask":  # what HF runs inside a CUDA graph: repeat_kv + explicit bool causal mask
+                r = self.nh // self.nkv
+                ki, vi = ki.repeat_interleave(r, dim=1), vi.repeat_interleave(r, dim=1)
+                n = ki.shape[2]
+                m = self._tril_cache.get((n, q.device))
+                if m is None:
+                    m = self._tril_cache[(n, q.device)] = torch.ones(n, n, dtype=torch.bool, device=q.device).tril()[None, None]
+                o = F.scaled_dot_product_attention(qi.contiguous(), ki, vi, attn_mask=m, scale=self.hd ** -0.5)
+            elif self.attn_impl == "sdpa_mask":  # HF path: bool padding mask [1,1,1,L] (forces the masked backend)
                 m = torch.ones(1, 1, 1, ki.shape[2], dtype=torch.bool, device=q.device)
                 r = self.nh // self.nkv  # HF repeat_kv when a mask is given
                 ki, vi = ki.repeat_interleave(r, dim=1), vi.repeat_interleave(r, dim=1)
                 o = F.scaled_dot_product_attention(qi, ki, vi, attn_mask=m, scale=self.hd ** -0.5)
             else:
-                o = F.scaled_dot_product_attention(qi, ki, vi, is_causal=False, enable_gqa=True, scale=self.hd ** -0.5)
+                o = F.scaled_dot_product_attention(qi, ki, vi, is_causal=causal, enable_gqa=True, scale=self.hd ** -0.5)
             outs.append(o[0].transpose(0, 1))
         return torch.cat(outs, 0)
 
     # ------------------------------------------------------------ blocks
-    def _deltanet(self, L, x, cu, xq=None):
+    def _deltanet(self, L, x, cu, xq=None, cu_cpu=None):
         T = x.shape[0]
         from fla.modules.conv.causal_conv1d import causal_conv1d
         from fla.ops.gated_delta_rule import chunk_gated_delta_rule
@@ -572,18 +604,20 @@ class PplxEngine:
         mixed, z = qkvz[:, :conv_dim], qkvz[:, conv_dim:]
         parts = None
         if self.conv_impl == "fla" and T < self.split_conv_min_T:  # latency path: fewer launches
-            mixed, _ = causal_conv1d(mixed[None].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=cu)
+            mixed, _ = causal_conv1d(mixed[None].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=cu,
+                                     cu_seqlens_cpu=cu_cpu)
             mixed = mixed[0]
         elif self.conv_impl == "fla":
             # strided views straight into the fla conv kernel (no .contiguous()); one call per q/k/v channel block so the
             # outputs are already contiguous (no split copies before chunk_gated_delta_rule's input_guard)
             parts, c0 = [], 0
             for w_i, n_i in zip(L["conv_ws"], (self.key_dim, self.key_dim, self.value_dim)):
-                y_i, _ = causal_conv1d(mixed[None, :, c0:c0 + n_i], weight=w_i, activation="silu", cu_seqlens=cu)
+                y_i, _ = causal_conv1d(mixed[None, :, c0:c0 + n_i], weight=w_i, activation="silu", cu_seqlens=cu,
+                                       cu_seqlens_cpu=cu_cpu)
                 parts.append(y_i[0])
                 c0 += n_i
         else:  # HF reference fallback: bf16 F.conv1d per sequence, then silu in bf16
-            outs, offs = [], cu.tolist()
+            outs, offs = [], (cu_cpu if cu_cpu is not None else cu).tolist()
             for a0, b0 in zip(offs[:-1], offs[1:]):
                 xi = mixed[a0:b0].t()[None]
                 yi = F.conv1d(xi, L["conv_w"].unsqueeze(1), padding=3, groups=xi.shape[1])[..., : b0 - a0]
@@ -603,7 +637,7 @@ class PplxEngine:
             q = q.repeat_interleave(r, dim=2)
             k = k.repeat_interleave(r, dim=2)
         o, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta, initial_state=None, output_final_state=False,
-                                      use_qk_l2norm_in_kernel=True, cu_seqlens=cu)
+                                      use_qk_l2norm_in_kernel=True, cu_seqlens=cu, cu_seqlens_cpu=cu_cpu)
         if self.nv_fuse_gn and L["out"].mode == "nvfp4" and L["out"].x_amax is not None:
             gq, gs = fp4_triton.gated_norm_nvfp4_static(o, z, L["gnorm"], self.eps, L["out"].xg, T)
             if self.nv_check:
@@ -640,7 +674,7 @@ class PplxEngine:
         v = v.view(T, self.nkv, self.hd)
         if last_idx is None:
             q = K.norm_rope(q, L["q_norm"], cos[:, None], sin[:, None], self.eps, self.rot)
-            o = self._attend(q, k, v, cu, cu, max_len, max_len, lens, lens)
+            o = self._attend(q, k, v, cu, cu, max_len, max_len, lens, lens, causal=self.causal)
         else:
             q = K.norm_rope(q, L["q_norm"], cos[last_idx][:, None], sin[last_idx][:, None], self.eps, self.rot)
             n = last_idx.shape[0]
@@ -736,11 +770,31 @@ class PplxEngine:
         cu64 = cu.long()
         max_len = max(lens)
         last_idx = cu64[1:] - 1
-        pos = torch.cat([torch.arange(n, device=dev) for n in lens]).float()
+        cos, sin = self._rope_tables(lens, dev)
+        cu_cpu = torch.tensor(offs, dtype=torch.int64) if self.host_cu else None  # fla: no device sync for chunk indices
+        return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu))
+
+    def _rope_tables(self, lens, dev):
+        import numpy as np
+        pos = torch.from_numpy(np.concatenate([np.arange(n, dtype=np.float32) for n in lens])).to(dev)
         freqs = pos[:, None] * self.inv_freq[None]
         emb = torch.cat([freqs, freqs], -1)
-        cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
-        h = F.embedding(ids, self.embed)
+        return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
+
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None):
+        """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
+        inside a CUDA graph with static `ids` / `last_idx`). prune=False computes the last layer for every row (needed when
+        the sequences are right-padded: the pruned last-layer attention assumes the read row is the last key)."""
+        prune = self.prune_last if prune is None else prune
+        if self.embed.is_cuda:
+            h = F.embedding(ids, self.embed)
+        else:  # PPLX_EMBED_CPU=1 (opt-in, eager only: syncs with the host)
+            T = ids.numel()
+            if self._emb_buf is None or self._emb_buf.shape[0] < T:
+                self._emb_buf = torch.empty((max(T, 16384), self.embed.shape[1]), dtype=self.embed.dtype).pin_memory()
+            buf = self._emb_buf[:T]
+            torch.index_select(self.embed, 0, ids.cpu(), out=buf)
+            h = buf.to(ids.device, non_blocking=False)
         fq = self.linear_mode == "fp8" and self.fused_quant
         if fq and self._first_mode(self.layers[0]) == "fp8":
             x, x8, xs = K.rms_q(h, self.layers[0]["in_norm"], self.eps)
@@ -751,8 +805,8 @@ class PplxEngine:
             yield
             last = i == self.n_layers - 1
             if L["type"] == "linear_attention":
-                d = self._deltanet(L, x, cu64, xq)
-            elif not last:
+                d = self._deltanet(L, x, cu64, xq, cu_cpu)
+            elif not (last and prune):
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq)
             else:
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq)
@@ -789,6 +843,12 @@ class PplxEngine:
             else:
                 h, x = K.add_rms(h, d, self.norm_w if last else self.layers[i + 1]["in_norm"], self.eps)
                 xq = None
+            if self._trace is not None:  # debugging: residual stream of the last token of every decision after each layer
+                self._trace.append((h if h.shape[0] == last_idx.shape[0] else h[last_idx]).float().clone())
+        if not prune:
+            x = x[last_idx]
+        if self.readout.dtype == torch.float32:  # d3 runtime: hidden.float() @ readout.T in fp32
+            return x.float() @ self.readout.T
         return F.linear(x, self.readout).float()
 
     def probs(self, logits, counts, temperature=None):

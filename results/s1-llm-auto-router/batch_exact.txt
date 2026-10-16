@@ -1,0 +1,2 @@
+batch 2: 283 batches, 567 items, max abs logit diff 0.000e+00, argmax flips (3 softmax heads) 0
+batch 8: 70 batches, 567 items, max abs logit diff 0.000e+00, argmax flips (3 softmax heads) 0
