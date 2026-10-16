@@ -52,19 +52,22 @@ def bench(B, graph):
 
 
 t0 = time.time()
-eng.capture_graphs(GRAPH_SHAPES)
-print(f"graphs captured in {time.time() - t0:.0f}s")
+if eng.exact:
+    eng.start_runner()
+else:
+    eng.capture_graphs(GRAPH_SHAPES)
+print(f"graphs captured in {time.time() - t0:.0f}s (exact={eng.exact})")
 for B in [int(x) for x in a.batches.split(",")]:
-    ms_e = bench(B, False)
-    ms_g = bench(B, True) if eng._pick_graph([a.lens] * B) is not None else None
-    print(f"B={B:3d} eager {ms_e:7.2f} ms ({B / ms_e * 1000:7.1f} dec/s)"
+    ms_e = bench(B, False) if not eng.exact else None
+    ms_g = bench(B, True) if (eng.exact or eng._pick_graph([a.lens] * B) is not None) else None
+    print(f"B={B:3d}" + (f" eager {ms_e:7.2f} ms ({B / ms_e * 1000:7.1f} dec/s)" if ms_e else "")
           + (f"   graph {ms_g:7.2f} ms ({B / ms_g * 1000:7.1f} dec/s)" if ms_g else ""), flush=True)
 if a.profile:
     from torch.profiler import ProfilerActivity, profile
-    arr = mk(a.profile)
-    eng.graphs = {}
+    arr = [np.ones(192, dtype=np.int64) * 5 for _ in range(a.profile)]
+    eng.graphs, eng.runner = {}, None
     eng.logits(arr)
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
         eng.logits(arr)
         torch.cuda.synchronize()
-    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=25, max_name_column_width=70))
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=40, max_name_column_width=70))

@@ -79,7 +79,7 @@ class PlumbEngine(PplxEngine):
             kw.setdefault("conv_impl", "torch")
             kw.setdefault("attn_impl", "sdpa_cmask")
             kw.setdefault("prune_last", False)
-            kw.setdefault("compile", False)
+            kw["compile"] = False  # fused/compiled elementwise kernels would change rounding
         kw.setdefault("causal", True)
         kw.setdefault("gva_native", os.environ.get("PLUMB_GVA", "1"))
         self.letter_ids = None

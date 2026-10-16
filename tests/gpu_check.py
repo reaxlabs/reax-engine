@@ -49,19 +49,21 @@ def report(name, got):
 
 
 t = time.time()
-if be.engine.exact:
+if be.engine.exact and not os.environ.get('NO_RUNNER'):
     be.engine.start_runner(n_streams=int(os.environ.get("PLUMB_STREAMS", "4")))
     print("runner capture s", round(time.time() - t, 1), flush=True)
 else:
-    single = [be.run([e])[0] for e in encs]
-    report("eager_single", single)
-    be.engine.capture_graphs(GRAPH_SHAPES)
-    print("graph capture s", round(time.time() - t, 1), flush=True)
+    single = [be.run([e])[0] for e in encs] if not be.engine.exact else None
+    if single:
+        report("eager_single", single)
+    if not be.engine.exact:
+        be.engine.capture_graphs(GRAPH_SHAPES)
+        print("graph capture s", round(time.time() - t, 1), flush=True)
 report("single", [be.run([e])[0] for e in encs])
 rng = random.Random(1)
 order = list(range(len(encs)))
 rng.shuffle(order)
-for B in (3, 16, 64):
+for B in (1, 16, 64) if os.environ.get("NO_RUNNER") else (3, 16, 64):
     got = [None] * len(encs)
     for k in range(0, len(order), B):
         idx = order[k:k + B]
