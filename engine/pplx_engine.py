@@ -379,6 +379,8 @@ def rotate_half(x):
 
 # ---------------------------------------------------------------- model
 class PplxEngine:
+    HOST_CU_DEFAULT = "0"
+
     def __init__(self, model_dir, device="cuda", linear_mode="bf16", attn_impl="auto", gva_native=False,
                  fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None,
                  causal=False):
@@ -408,6 +410,7 @@ class PplxEngine:
         self.linear_mode = linear_mode
         self.attn_impl = attn_impl
         self.conv_impl = conv_impl
+        self.host_cu = os.environ.get("PPLX_HOST_CU", self.HOST_CU_DEFAULT) == "1"  # pass host-side cu_seqlens to fla (saves a device sync per step)
         self.mlp_chunk = int(os.environ.get("PPLX_MLP_CHUNK", "0"))
         self.triton_gnq = os.environ.get("PPLX_TRITON_GNQ", "1") == "1"
         self.triton_arq = (os.environ.get("PPLX_TRITON_ARQ", "0") == "1" and linear_mode == "fp8" and not fp8_skip
@@ -573,7 +576,7 @@ class PplxEngine:
         return torch.cat(outs, 0)
 
     # ------------------------------------------------------------ blocks
-    def _deltanet(self, L, x, cu, xq=None):
+    def _deltanet(self, L, x, cu, xq=None, cu_cpu=None):
         T = x.shape[0]
         from fla.modules.conv.causal_conv1d import causal_conv1d
         from fla.ops.gated_delta_rule import chunk_gated_delta_rule
@@ -583,14 +586,16 @@ class PplxEngine:
         mixed, z = qkvz[:, :conv_dim], qkvz[:, conv_dim:]
         parts = None
         if self.conv_impl == "fla" and T < self.split_conv_min_T:  # latency path: fewer launches
-            mixed, _ = causal_conv1d(mixed[None].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=cu)
+            mixed, _ = causal_conv1d(mixed[None].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=cu,
+                                     cu_seqlens_cpu=cu_cpu)
             mixed = mixed[0]
         elif self.conv_impl == "fla":
             # strided views straight into the fla conv kernel (no .contiguous()); one call per q/k/v channel block so the
             # outputs are already contiguous (no split copies before chunk_gated_delta_rule's input_guard)
             parts, c0 = [], 0
             for w_i, n_i in zip(L["conv_ws"], (self.key_dim, self.key_dim, self.value_dim)):
-                y_i, _ = causal_conv1d(mixed[None, :, c0:c0 + n_i], weight=w_i, activation="silu", cu_seqlens=cu)
+                y_i, _ = causal_conv1d(mixed[None, :, c0:c0 + n_i], weight=w_i, activation="silu", cu_seqlens=cu,
+                                       cu_seqlens_cpu=cu_cpu)
                 parts.append(y_i[0])
                 c0 += n_i
         else:  # HF reference fallback: bf16 F.conv1d per sequence, then silu in bf16
@@ -614,7 +619,7 @@ class PplxEngine:
             q = q.repeat_interleave(r, dim=2)
             k = k.repeat_interleave(r, dim=2)
         o, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta, initial_state=None, output_final_state=False,
-                                      use_qk_l2norm_in_kernel=True, cu_seqlens=cu)
+                                      use_qk_l2norm_in_kernel=True, cu_seqlens=cu, cu_seqlens_cpu=cu_cpu)
         if self.nv_fuse_gn and L["out"].mode == "nvfp4" and L["out"].x_amax is not None:
             gq, gs = fp4_triton.gated_norm_nvfp4_static(o, z, L["gnorm"], self.eps, L["out"].xg, T)
             if self.nv_check:
@@ -748,7 +753,8 @@ class PplxEngine:
         max_len = max(lens)
         last_idx = cu64[1:] - 1
         cos, sin = self._rope_tables(lens, dev)
-        return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin))
+        cu_cpu = torch.tensor(offs, dtype=torch.int64) if self.host_cu else None  # fla: no device sync for chunk indices
+        return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu))
 
     def _rope_tables(self, lens, dev):
         import numpy as np
@@ -757,7 +763,7 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
 
-    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin):
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None):
         """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
         inside a CUDA graph with static `ids` / `last_idx`)."""
         h = F.embedding(ids, self.embed)
@@ -771,7 +777,7 @@ class PplxEngine:
             yield
             last = i == self.n_layers - 1
             if L["type"] == "linear_attention":
-                d = self._deltanet(L, x, cu64, xq)
+                d = self._deltanet(L, x, cu64, xq, cu_cpu)
             elif not last:
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq)
             else:

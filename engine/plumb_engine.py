@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+os.environ.setdefault("FLA_TENSOR_CACHE_SIZE", "16")  # read when fla is first imported (see _fla_cache_entries)
 from pplx_engine import PplxEngine
 
 LETTERS = "ABCDEFGHIJKLMNOP"
@@ -66,6 +67,8 @@ def prompt_text(state, criterion, options: list[str]) -> str:
 
 
 class PlumbEngine(PplxEngine):
+    HOST_CU_DEFAULT = "1"
+
     def __init__(self, model_dir, **kw):
         kw.setdefault("causal", True)
         self.letter_ids = None
@@ -128,6 +131,25 @@ class PlumbEngine(PplxEngine):
                 self.graphs[(B, n)] = _Graph(self, B, n, pool)
 
 
+def _fla_cache_entries(*keys):
+    """All (args, kwargs, result) triples in fla's tensor_cache deques whose arguments include one of `keys`."""
+    import collections
+    import sys
+    found = []
+    for name, mod in list(sys.modules.items()):
+        if not name.startswith("fla") or mod is None:
+            continue
+        for obj in list(vars(mod).values()):
+            for cell in getattr(obj, "__closure__", None) or ():
+                try:
+                    c = cell.cell_contents
+                except ValueError:
+                    continue
+                if isinstance(c, collections.deque):
+                    found += [e for e in c if isinstance(e, tuple) and any(a is k for a in (*e[0], *e[1].values()) for k in keys)]
+    return found
+
+
 class _Graph:
     """CUDA graph of the whole forward for B sequences padded to n tokens (static ids / last-token index buffers)."""
 
@@ -142,14 +164,20 @@ class _Graph:
         self.host_ids = torch.zeros(B * n, dtype=torch.int64).pin_memory()
         self.host_last = torch.zeros(B, dtype=torch.int64).pin_memory()
 
+        cu64 = cu.long()
+        cu_cpu = torch.tensor(offs, dtype=torch.int64)
+
         def fwd():
-            return eng._drive([eng._core_gen(self.ids, cu, cu.long(), offs, n, self.last, cos, sin)], [None])[0]
+            return eng._drive([eng._core_gen(self.ids, cu, cu64, offs, n, self.last, cos, sin, cu_cpu)], [None])[0]
         stream = torch.cuda.Stream()
         stream.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(stream):
             for _ in range(3):
                 fwd()
         torch.cuda.current_stream().wait_stream(stream)
+        # fla memoises index tensors derived from cu_seqlens by object identity in small bounded caches; the graph reads
+        # them, so keep them alive (and the cache entries hit during capture) for as long as the graph exists
+        self._keep = (cu, cu64, cu_cpu, cos, sin, offs, _fla_cache_entries(cu64, cu_cpu))
         self.graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(self.graph, pool=pool):
             self.out = fwd()
