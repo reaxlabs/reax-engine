@@ -12,6 +12,7 @@ RUN apt-get update -qq && apt-get install -y -qq curl ca-certificates build-esse
 RUN python -m pip install -q torch==2.14.0 torchvision==0.29.0 --index-url https://download.pytorch.org/whl/cu130 \
  && python -m pip install -q transformers==5.17.0 accelerate==1.15.0 safetensors==0.8.0 flash-linear-attention==0.5.2 \
       huggingface-hub==1.31.0 hf_xet pillow numpy einops opencv-python-headless \
+      uvicorn==0.29.0 uvloop==0.22.1 httptools==0.8.0 \
  && python -m pip install -q --no-deps quyet==1.0.2
 RUN mkdir -p /opt/reax /licenses
 COPY engine /opt/reax/engine
@@ -20,5 +21,5 @@ COPY upstream /opt/reax/upstream
 COPY LICENSE NOTICE /licenses/
 ENV PYTHONPATH=/opt/reax HOME=/tmp TRITON_CACHE_DIR=/tmp/triton XDG_CACHE_HOME=/tmp/.cache TORCHINDUCTOR_CACHE_DIR=/tmp/inductor
 WORKDIR /opt/reax
-# default: the REAX server; override the command for a reference server
+# default: the REAX server (engine/serve.py; needs S1M_INTERNAL_TOKEN or RUNTIME_ALLOW_NO_AUTH=1); override the command for a reference server
 ENTRYPOINT ["python", "-m", "engine.serve"]

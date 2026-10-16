@@ -2,7 +2,7 @@
 # in front. Same pinned vLLM base as the reax-subnet s1-pro runtime (vLLM 0.30.0). NOT built in the authoring environment:
 # build it on the GPU host.
 #   docker build -f docker/vllm-readout/Dockerfile -t reax-vllm-readout .      (from the repository root)
-#   docker run --rm --gpus all -v /path/to/weights:/model:ro -e REAX_MODEL=quyet-1.0-large -e REAX_PRESET=fp8-kv \
+#   docker run --rm --gpus all -v /path/to/weights:/model:ro -e REAX_MODEL=quyet-1.0-large -e REAX_PRESET=fp8-kv -e S1M_INTERNAL_TOKEN=change-me \
 #       -p 127.0.0.1:8741:8741 reax-vllm-readout
 # Weights are mounted read-only at /model (Rune: HF-gated, download with your own account). No API keys are needed or passed.
 ARG BASE=vllm/vllm-openai@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
