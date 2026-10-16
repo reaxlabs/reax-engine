@@ -1,0 +1,59 @@
+{
+ "hardware": {
+  "min_gpu_memory_gb": 24,
+  "note": "one CUDA GPU; CPU is not supported"
+ },
+ "licence": {
+  "note": "Qwen3.5-4B base (Apache-2.0); decision prompt and readout adapted from SemIf (MIT)",
+  "notices": [
+   "LICENSE",
+   "NOTICE",
+   "NOTICE-jevk5"
+  ],
+  "spdx": "Apache-2.0"
+ },
+ "limits": {
+  "max_input_tokens": 4096,
+  "max_options": 16,
+  "max_state_bytes": 16384,
+  "min_options": 2
+ },
+ "model": "s1-fast",
+ "name": "Plumb-4B (System1 s1-fast)",
+ "production_reference": "s1m-engine Dockerfile.fast + PlumbBatchBackend(max_batch=1)",
+ "readout": {
+  "labels": "ABCDEFGHIJKLMNOP",
+  "logits": "hidden[last] @ lm_head[letters].T (bf16), CUDA graph per padded length",
+  "prompt": "jevk5-0.2 (SemIf JSON payload: evidence, criterion, lettered options 'id: description')",
+  "softmax": "float32 numpy over letter logits / T",
+  "temperature": 2.07
+ },
+ "runtime": {
+  "base_image": "pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime@sha256:db80a41f8428644cebcb3d75b0b62df334ab6c0e75785951eb25f48bfbd42407",
+  "dtype": "bfloat16",
+  "engine": "jevk5-graph-batch1",
+  "packages": {
+   "accelerate": "1.15.0",
+   "einops": "0.8.2",
+   "flash-linear-attention": "0.5.2",
+   "huggingface-hub": "1.33.0",
+   "jevk5": "https://github.com/allebee/jevk5/archive/85238d7be5527370c43206fe54cd752eb3134c1b.tar.gz",
+   "transformers": "5.17.0"
+  },
+  "source_files": {
+   "jevk5/__init__.py": "997c425ce2425c3b84d362403791a713bd707e1c2c6871f9fb1a92ae41a3890f",
+   "jevk5/runtime.py": "bf54965041d41acfdb89b92d9d71623457c4458021adb804fa12836747a92872",
+   "jevk5/server.py": "2ebde38db58a1603ee390f72eb8737d5e969003973788640fa0e1edd58d75977"
+  }
+ },
+ "schema": "reax-s1-manifest/1",
+ "weights": {
+  "files": {
+   "jevk5_config.json": "a971c01fcf3ec161a03c61f5e3883b93fbd27696a529a54acd989845bf6fdead",
+   "model.safetensors": "89e119ea07f4c5b4b6715560c7de6694ec3b777dfd0e62351da0b33986d2e1e1",
+   "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+  },
+  "hf_repo": "crh225/plumb-4b",
+  "revision": "55de037801a8a9b9de3db5c0e16cef86210c2186"
+ }
+}
