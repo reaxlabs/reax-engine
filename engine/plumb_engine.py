@@ -66,6 +66,19 @@ def prompt_text(state, criterion, options: list[str]) -> str:
     return PREFIX + json.dumps(payload, ensure_ascii=False).strip() + SUFFIX
 
 
+def pin_fla_autotune():
+    """fla autotunes its Triton kernels by timing, at random per process. For l2norm_fwd_kernel (q/k normalisation of the
+    DeltaNet layers, a row reduction over 128 values) some choices (e.g. BT=8, 8 warps) sum in a different order, which
+    changes bf16 results at the last bit and, through 24 layers, the answers (mean logit distance ~0.06 vs the other
+    processes; seen in ~1 of 10 process starts, in the reference runtime as well as here). Fix one of the configs the
+    majority of processes end up with, so every start of this engine computes the same bits."""
+    import triton
+    from fla.modules import l2norm
+    k = l2norm.l2norm_fwd_kernel
+    k.configs = [triton.Config({"BT": 16}, num_warps=4)]
+    k.cache.clear()
+
+
 class PlumbEngine(PplxEngine):
     HOST_CU_DEFAULT = "1"
 
@@ -80,6 +93,7 @@ class PlumbEngine(PplxEngine):
             kw.setdefault("attn_impl", "sdpa_cmask")
             kw.setdefault("prune_last", False)
             kw["compile"] = False  # fused/compiled elementwise kernels would change rounding
+        pin_fla_autotune()
         kw.setdefault("causal", True)
         kw.setdefault("gva_native", os.environ.get("PLUMB_GVA", "1"))
         self.letter_ids = None
