@@ -6,7 +6,7 @@
 
 Items: JSONL rows {"task_id"|"id", "state", "question"}. `dump` sends one question per request (closed loop, --conc requests in
 flight, one pass) and stores the raw answer of every item; `compare` reports, over the items answered in both dumps, how many
-have bit-identical probabilities, the maximum absolute probability difference, the top-choice agreement and the answers that
+have bit-identical answers, the maximum absolute probability difference, the top-choice agreement and the answers that
 differ in shape (keys, type). Exit status 1 if any answered item differs.
 """
 import argparse
@@ -46,19 +46,23 @@ def dump(a):
     print(json.dumps({"items": len(rows), "answered": sum(v["http"] == 200 for v in out.values()), "out": a.out}))
 
 
+def vec(ans):
+    """Option probabilities of an answer ({key: p}); noul answers of some models carry only the `noul` value."""
+    return ans["probabilities"] if "probabilities" in ans else {"noul": ans["noul"]}
+
+
 def compare(a):
     x, y = json.load(open(a.a)), json.load(open(a.b))
     both = [k for k in x if k in y and x[k]["http"] == 200 and y[k]["http"] == 200]
     ident = shape = top = 0
     worst = 0.0
     for k in both:
-        p, q = x[k]["answer"]["probabilities"], y[k]["answer"]["probabilities"]
+        p, q = vec(x[k]["answer"]), vec(y[k]["answer"])
         if list(p) != list(q) or x[k]["answer"]["type"] != y[k]["answer"]["type"]:
             shape += 1
             continue
-        d = max(abs(p[i] - q[i]) for i in p)
-        worst = max(worst, d)
-        ident += p == q
+        worst = max(worst, max(abs(p[i] - q[i]) for i in p))
+        ident += x[k]["answer"] == y[k]["answer"]
         top += max(p, key=p.get) == max(q, key=q.get)
     n = len(both) - shape
     http_diff = sum(1 for k in x if k in y and x[k]["http"] != y[k]["http"])
