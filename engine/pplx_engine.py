@@ -743,8 +743,11 @@ class PplxEngine:
         q = K.norm_rope(q, L["q_norm"], qc[:, None], sc[:, None], self.eps, self.rot)
         if last_idx is None:
             Tp = sh.Tp
-            o = self._attend(q[:Tp], k[:Tp], v[:Tp], sh.cu_p, sh.cu_p, sh.max_p, sh.max_p, sh.offs_p, sh.offs_p,
-                            causal=self.causal)
+            if getattr(sh, "kp_idx", None) is not None:  # PPLX_SHARED_MIXQ=1: state rows also see all questions of the request
+                o = self._attend(q[:Tp], k[sh.kp_idx], v[sh.kp_idx], sh.cu_p, sh.cu_kp, sh.max_p, sh.max_kp, sh.offs_p, sh.offs_kp)
+            else:
+                o = self._attend(q[:Tp], k[:Tp], v[:Tp], sh.cu_p, sh.cu_p, sh.max_p, sh.max_p, sh.offs_p, sh.offs_p,
+                                 causal=self.causal)
             if sh.Ts:
                 os_ = self._attend(q[Tp:], k[sh.kx_idx], v[sh.kx_idx], sh.cu_s, sh.cu_kx, sh.max_s, sh.max_kx, sh.offs_s, sh.offs_kx,
                                     causal=self.causal)
@@ -981,6 +984,17 @@ class PplxEngine:
             sh.ext_idx, sh.keep_idx = T_(np.concatenate(ext)), T_(np.concatenate(keep))
             sh.cu_ext64 = T_(cum([n + kc for n in s_lens]))
             sh.kx_idx, sh.cu_kx, sh.max_kx, sh.offs_kx = T_(np.concatenate(kx)), T_(cu_kx, torch.int32), max(kx_lens), cu_kx.tolist()
+        if Ts and os.environ.get("PPLX_SHARED_MIXQ") == "1":
+            kp, kp_lens, j = [], [], 0
+            for gi, (_, ss) in enumerate(groups):
+                parts = [np.arange(cu_p[gi], cu_p[gi + 1])]
+                for _ in ss:
+                    parts.append(Tp + np.arange(cu_s[j], cu_s[j + 1]))
+                    j += 1
+                kp.append(np.concatenate(parts))
+                kp_lens.append(sum(len(x) for x in parts))
+            cu_kp = cum(kp_lens)
+            sh.kp_idx, sh.cu_kp, sh.max_kp, sh.offs_kp = T_(np.concatenate(kp)), T_(cu_kp, torch.int32), max(kp_lens), cu_kp.tolist()
         cu_kr = cum(kr_lens)
         n = len(read)
         sh.kr_idx, sh.cu_kr, sh.max_kr, sh.offs_kr = T_(np.concatenate(kr)), T_(cu_kr, torch.int32), max(kr_lens), cu_kr.tolist()
