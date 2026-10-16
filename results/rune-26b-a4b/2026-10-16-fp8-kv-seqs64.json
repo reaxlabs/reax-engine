@@ -1,0 +1,312 @@
+{
+ "model": "rune-26b-a4b",
+ "utc": "2026-10-16T09:34:40Z",
+ "spec": {
+  "id": "rune-26b-a4b",
+  "hf_repo": "surogate/rune-26b-a4b-GGUF",
+  "revision": "c6b360d47895bb77bdf3805a13ee5a5557ab1921",
+  "licence": "Apache-2.0",
+  "licence_notice": "Apache-2.0 (base google/gemma-4-26B-A4B-it). HF-gated: each operator accepts the gate with their own account; do not mirror the weights.",
+  "params": "~26B (4B active)",
+  "arch": "Gemma-4 MoE (from the base config: 30 layers, 25 sliding + 5 full attention, 128 experts top-8); the repo name says GGUF but the files are bf16 safetensors",
+  "readout": "Surogate decisions v1 (system line + SHARED STATE JSON user turn), letters A..Z then single-token two-letter codes, raw soft-capped logits / T=2.0",
+  "backend_kind": "vllm",
+  "status": "vllm-backed",
+  "hardware": "80+ GB card (60 GB minimum); measured RTX PRO 6000 97.9 GB",
+  "aliases": [
+   "rune",
+   "s1-pro"
+  ],
+  "gated": true,
+  "weights_gb": 52,
+  "notes": "Rune's own config.json is not readable without the gate; architecture is taken from the base model's config.",
+  "has_factory": true
+ },
+ "env": {
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB, 580.178.04",
+  "engine_image_id": "sha256:454e609a6d24cc0db33b73471191c721035abd7c2482b201e8c4249789964c1a",
+  "reference_image_id": "sha256:9d47b92adea7aec64b5ed3ce8afe91e231699455ff5f251324314cce71cd215d",
+  "peak_gpu_mem_mib": {
+   "reference": 83011,
+   "reax": 63597
+  },
+  "gpu_arg": "device=1",
+  "preset": "fp8-kv-seqs64",
+  "reax_opts": "",
+  "concurrency": 16,
+  "load_seconds": 60,
+  "di_limit": 1000,
+  "repo_head": "unknown"
+ },
+ "agreement": {
+  "p300": {
+   "set": "p300",
+   "contract": "s1",
+   "n_items": 300,
+   "utc": "2026-10-16T09:30:43Z",
+   "ref": {
+    "target": "/workspace/reax-validate/cache/rune-26b-a4b/c6b360d47895bb77bdf3805a13ee5a5557ab1921/ref-p300.jsonl",
+    "answered": 297,
+    "unsupported": 3,
+    "errors": 0,
+    "missing": 0
+   },
+   "cand": {
+    "target": "url",
+    "answered": 297,
+    "unsupported": 3,
+    "errors": 0,
+    "missing": 0
+   },
+   "paired": {
+    "n": 297,
+    "top_choice_agreement": 0.9595959595959596,
+    "mean_abs_dp": 0.016773278030134516,
+    "max_abs_dp": 0.39998727168383497,
+    "mean_abs_dlogp": 0.2336281113926508,
+    "max_abs_dlogp": 6.057630676685077,
+    "frac_max_dp_gt_0.005": 0.6801346801346801
+   },
+   "by_type": {
+    "choice": {
+     "n": 147,
+     "top_choice_agreement": 0.9455782312925171,
+     "mean_abs_dp": 0.015119811274548874,
+     "max_abs_dp": 0.39998727168383497,
+     "mean_abs_dlogp": 0.2656698839103927,
+     "max_abs_dlogp": 2.8717080182949113,
+     "frac_max_dp_gt_0.005": 0.6530612244897959
+    },
+    "noul": {
+     "n": 75,
+     "top_choice_agreement": 1.0,
+     "mean_abs_dp": 0.017022292015134242,
+     "max_abs_dp": 0.16999387295317053,
+     "mean_abs_dlogp": 0.18701822916667155,
+     "max_abs_dlogp": 6.057630676685077,
+     "frac_max_dp_gt_0.005": 0.56
+    },
+    "score": {
+     "n": 75,
+     "top_choice_agreement": 0.9466666666666667,
+     "mean_abs_dp": 0.019765058886082643,
+     "max_abs_dp": 0.2288979616116944,
+     "mean_abs_dlogp": 0.21743611948385597,
+     "max_abs_dlogp": 2.462544426603934,
+     "frac_max_dp_gt_0.005": 0.8533333333333334
+    }
+   },
+   "gold": {
+    "n": 297,
+    "ref_accuracy": 0.8316498316498316,
+    "cand_accuracy": 0.8249158249158249,
+    "ref_mean_gold_prob": 0.7472327677705937,
+    "cand_mean_gold_prob": 0.7425917735923483,
+    "accuracy_delta": {
+     "delta_pp": -0.6734006734006734,
+     "ci95": [
+      -2.6936026936026938,
+      1.3468013468013469
+     ],
+     "reps": 1000,
+     "n": 297
+    },
+    "gold_prob_delta": {
+     "delta_pp": -0.46409941782453035,
+     "ci95": [
+      -1.041558170686166,
+      0.08283246222146949
+     ],
+     "reps": 1000,
+     "n": 297
+    },
+    "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+   }
+  },
+  "di": {
+   "set": "di",
+   "contract": "s1",
+   "n_items": 5129,
+   "utc": "2026-10-16T09:32:40Z",
+   "ref": {
+    "target": "/workspace/reax-validate/cache/rune-26b-a4b/c6b360d47895bb77bdf3805a13ee5a5557ab1921/ref-di.jsonl",
+    "answered": 5029,
+    "unsupported": 100,
+    "errors": 0,
+    "missing": 0
+   },
+   "cand": {
+    "target": "url",
+    "answered": 4981,
+    "unsupported": 148,
+    "errors": 0,
+    "missing": 0
+   },
+   "paired": {
+    "n": 4981,
+    "top_choice_agreement": 0.9827343906846014,
+    "mean_abs_dp": 0.016717136778488368,
+    "max_abs_dp": 0.42972595503569744,
+    "mean_abs_dlogp": 0.18618341113921597,
+    "max_abs_dlogp": 6.390242432805399,
+    "frac_max_dp_gt_0.005": 0.5163621762698254
+   },
+   "by_type": {
+    "choice": {
+     "n": 4813,
+     "top_choice_agreement": 0.9829628090587991,
+     "mean_abs_dp": 0.016654329575634313,
+     "max_abs_dp": 0.42972595503569744,
+     "mean_abs_dlogp": 0.18842780145116042,
+     "max_abs_dlogp": 6.390242432805399,
+     "frac_max_dp_gt_0.005": 0.5146478287970081
+    },
+    "noul": {
+     "n": 168,
+     "top_choice_agreement": 0.9761904761904762,
+     "mean_abs_dp": 0.01851648836977745,
+     "max_abs_dp": 0.2088547711959875,
+     "mean_abs_dlogp": 0.12188430059523558,
+     "max_abs_dlogp": 1.5660364643032179,
+     "frac_max_dp_gt_0.005": 0.5654761904761905
+    }
+   },
+   "gold": {
+    "n": 3425,
+    "ref_accuracy": 0.8595620437956204,
+    "cand_accuracy": 0.8598540145985402,
+    "ref_mean_gold_prob": 0.806912912744634,
+    "cand_mean_gold_prob": 0.8055663869669804,
+    "accuracy_delta": {
+     "delta_pp": 0.029197080291970802,
+     "ci95": [
+      -0.38382804503582396,
+      0.4873853211009174
+     ],
+     "reps": 1000,
+     "n": 3425
+    },
+    "gold_prob_delta": {
+     "delta_pp": -0.1346525777653789,
+     "ci95": [
+      -0.30865669387014405,
+      0.02632656918787047
+     ],
+     "reps": 1000,
+     "n": 3425
+    },
+    "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+   }
+  }
+ },
+ "throughput": {
+  "p300": {
+   "reference": {
+    "set": "p300",
+    "contract": "s1",
+    "grouped": false,
+    "max_chars": 0,
+    "n_requests": 300,
+    "utc": "2026-10-16T09:28:47Z",
+    "levels": [
+     {
+      "concurrency": 1,
+      "wall_s": 60.0,
+      "requests": 944,
+      "decisions": 944,
+      "decisions_per_s": 15.73,
+      "requests_per_s": 15.73,
+      "http_codes": {
+       "200": 944,
+       "400": 12
+      },
+      "req_p50_ms": 62.0,
+      "req_p95_ms": 74.2,
+      "req_max_ms": 136.2,
+      "single_q_p50_ms": 62.0,
+      "single_q_p95_ms": 74.2
+     },
+     {
+      "concurrency": 16,
+      "wall_s": 60.2,
+      "requests": 2722,
+      "decisions": 2722,
+      "decisions_per_s": 45.22,
+      "requests_per_s": 45.22,
+      "http_codes": {
+       "200": 2722,
+       "400": 30
+      },
+      "req_p50_ms": 350.8,
+      "req_p95_ms": 407.2,
+      "req_max_ms": 455.4,
+      "single_q_p50_ms": 350.8,
+      "single_q_p95_ms": 407.2
+     }
+    ]
+   },
+   "reax": {
+    "set": "p300",
+    "contract": "s1",
+    "grouped": false,
+    "max_chars": 0,
+    "n_requests": 300,
+    "utc": "2026-10-16T09:34:40Z",
+    "levels": [
+     {
+      "concurrency": 1,
+      "wall_s": 60.1,
+      "requests": 1041,
+      "decisions": 1041,
+      "decisions_per_s": 17.33,
+      "requests_per_s": 17.33,
+      "http_codes": {
+       "200": 1041,
+       "422": 12
+      },
+      "req_p50_ms": 56.9,
+      "req_p95_ms": 70.2,
+      "req_max_ms": 86.9,
+      "single_q_p50_ms": 56.9,
+      "single_q_p95_ms": 70.2
+     },
+     {
+      "concurrency": 16,
+      "wall_s": 60.2,
+      "requests": 3089,
+      "decisions": 3089,
+      "decisions_per_s": 51.34,
+      "requests_per_s": 51.34,
+      "http_codes": {
+       "200": 3089,
+       "422": 33
+      },
+      "req_p50_ms": 315.7,
+      "req_p95_ms": 376.5,
+      "req_max_ms": 445.4,
+      "single_q_p50_ms": 315.7,
+      "single_q_p95_ms": 376.5
+     }
+    ]
+   },
+   "reax_over_reference_decisions_per_s": {
+    "1": 1.102,
+    "16": 1.135
+   }
+  },
+  "di_grouped": {
+   "reference": null,
+   "reax": null,
+   "reax_over_reference_decisions_per_s": {}
+  }
+ },
+ "headline": {
+  "p300_top_choice_agreement": 0.9595959595959596,
+  "p300_mean_abs_dp": 0.016773278030134516,
+  "p300_max_abs_dp": 0.39998727168383497,
+  "speedup_by_concurrency_p300": {
+   "1": 1.102,
+   "16": 1.135
+  }
+ }
+}

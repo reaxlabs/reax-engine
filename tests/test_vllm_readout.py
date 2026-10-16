@@ -193,3 +193,17 @@ def test_cli_without_preset_uses_default(capsys):
     V.main(["rune", "/model"])
     out = capsys.readouterr().out
     assert "VLLM_BATCH_INVARIANT=1" in out and "--no-enable-prefix-caching" in out
+
+
+def test_blink_presets_and_defaults():
+    b = V.preset_for("blink")                                   # default = bi1
+    argv = V.vllm_argv(b, "/m")
+    assert b.name == "bi1" and b.env["VLLM_BATCH_INVARIANT"] == "1"
+    assert argv[argv.index("--quantization") + 1] == "modelopt_fp4" and argv[argv.index("--kv-cache-dtype") + 1] == "fp8"
+    assert argv[argv.index("--max-num-seqs") + 1] == "256" and argv[argv.index("--max-num-batched-tokens") + 1] == "16384"
+    assert V.preset_for("blink", "stock").env == {} and V.preset_for("blink", "bi1-memory30").args[-1] == "0.30"
+    cfg = V.load_family_config("blink")
+    assert cfg.temperatures == {"choice": 1.3, "score": 1.3, "noul": 1.3} and cfg.max_options == 26
+    e = enc("blink")                                            # Rune prompt path, T=1.3
+    item = e.encode("s", {"type": "choice", "instructions": "i", "criteria": {"a": "x", "b": "y"}})
+    assert item.payload.temperature == 1.3 and item.n_options == 2

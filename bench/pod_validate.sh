@@ -11,7 +11,7 @@
 #      (+ DI-<DI_LIMIT>) are saved, then c1 and c$CONC throughput is measured, then the server is stopped
 #   4. REAX Engine server for the model: the same agreement run against the saved reference responses, the same load levels
 #   5. writes results/<model>/<date>.json (bench/summarize.py)
-# Environment: WORK (default /workspace/reax-validate)  PRESET (vLLM-backed models; default: faithful preset)  CONC (16)
+# Environment: RESULTS_DIR (default <repo>/results)  WORK (default /workspace/reax-validate)  PRESET (vLLM-backed models; default: faithful preset)  CONC (16)
 #   LOAD_SECONDS (60)  DI_LIMIT (1000; 0 = skip DI)  VERIFY (1: check MANIFEST.sha256 when the repo ships one)
 #   LOAD_MAX_CHARS (0: drop load-test items whose state is longer than this many characters)  SKIP_AGREEMENT (1: load test only; set AGREEMENT_RAW to the raw dir of an earlier run)  TAG (suffix of the results file)
 #   GPU (docker --gpus value: "all" or a device index; default all)  PORT_OFF (added to the server ports, so two models can run on two GPUs at once)
@@ -23,6 +23,7 @@ MODEL_ARG=${1:?usage: bench/pod_validate.sh <model-id>}
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
 WORK=${WORK:-/workspace/reax-validate}
+RESULTS_DIR=${RESULTS_DIR:-$ROOT/results}
 DATA=${REAX_BENCH_DATA:?set REAX_BENCH_DATA to the directory with the evaluation sets (see bench/sets.py)}
 CONC=${CONC:-16}; LOAD_SECONDS=${LOAD_SECONDS:-60}; DI_LIMIT=${DI_LIMIT:-1000}; VERIFY=${VERIFY:-1}; RO=${RO:-1}
 TODAY=$(date -u +%F)
@@ -36,7 +37,7 @@ case "$STATUS" in native|vllm-backed) ;; *) echo "pod_validate: $ID has status $
 [ -d "$DATA" ] || { echo "no data dir $DATA"; exit 2; }
 command -v docker >/dev/null || { echo "docker missing"; exit 2; }
 nvidia-smi -L >/dev/null || { echo "no NVIDIA GPU visible"; exit 2; }
-mkdir -p "$WORK/raw/$ID" "$WORK/cache/$ID" "$ROOT/results/$ID"
+mkdir -p "$WORK/raw/$ID" "$WORK/cache/$ID" "$RESULTS_DIR/$ID"
 mkdir -p "$WORK/raw/$ID${PRESET:+-$PRESET}${TAG:+-$TAG}"
 RAW=$WORK/raw/$ID${PRESET:+-$PRESET}${TAG:+-$TAG}; MDIR=$WORK/weights/$ID
 AVAIL=$(df -BG --output=avail "$WORK" | tail -1 | tr -dc 0-9)
@@ -179,7 +180,7 @@ PEAK_REF=$(tr -dc 0-9 < "$RAW/peak-mem-ref.txt"); PEAK_CAND=$(tr -dc 0-9 < "$RAW
   echo " \"repo_head\": \"$(git rev-parse HEAD 2>/dev/null || echo unknown)\"}"
 } > "$RAW/env.json"
 echo "$SPEC" > "$RAW/spec.json"
-OUT=$ROOT/results/$ID/$TODAY${PRESET:+-$PRESET}${TAG:+-$TAG}.json
+OUT=$RESULTS_DIR/$ID/$TODAY${PRESET:+-$PRESET}${TAG:+-$TAG}.json
 python3 -m bench.summarize --model "$ID" --spec "$RAW/spec.json" --env "$RAW/env.json" --agreement "${AGREEMENT_RAW:-$RAW}/agreement-p300.json" \
   --agreement-di "${AGREEMENT_RAW:-$RAW}/agreement-di.json" --ref-load "$RAW/load-ref-p300.json" --cand-load "$RAW/load-cand-p300.json" \
   --ref-load-di "$RAW/load-ref-di.json" --cand-load-di "$RAW/load-cand-di.json" --out "$OUT"
