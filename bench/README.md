@@ -7,6 +7,8 @@ Stdlib-only Python (runs on the host of the pod; the model servers run in contai
 | `python -m bench.agreement --ref URL\|FILE --cand URL\|FILE --set p300\|public231\|di\|s1 --contract systemone\|s1` | top-choice agreement, mean/max abs dp and abs d log p, accuracy vs gold (P300, DI) with a paired-bootstrap CI of the candidate-minus-reference delta |
 | `python -m bench.loadgen --url URL --set p300 --concurrency 1,16 --seconds 60 [--grouped]` | closed-loop decisions/s and request latency p50/p95 |
 | `bench/pod_validate.sh <model-id>` | the whole pod run for one model (download, reference, REAX server, agreement, load, `results/<model>/<date>.json`) |
+| `python -m bench.table results/*/*.json` | markdown tables from the results files |
+| `python -m bench.check_blink_prompt MODEL_DIR` | token-for-token check of the Blink/Rune prompt against the model card's client code (container with transformers) |
 | `python -m bench.summarize` | merges the raw outputs of one pod run |
 | `bench/ref/quyet_ref_server.py` | `/v1/systemone` shim around the author's `quyet` package (container only) |
 
@@ -36,7 +38,10 @@ bash bench/pod_validate.sh pplx-decider-v1.1-27b
 bash bench/pod_validate.sh d3
 PRESET=fp8-kv bash bench/pod_validate.sh quyet-1.0-large
 PRESET=fp8-kv-seqs64 REAX_SUBNET_DIR=/data/reax-subnet bash bench/pod_validate.sh rune-26b-a4b
+PRESET=bi1 bash bench/pod_validate.sh blink-v0.3-26b-a4b      # reference = the model card's plain vLLM recipe (preset stock)
 ```
 Knobs: `CONC` (16), `LOAD_SECONDS` (60), `DI_LIMIT` (1000, `0` skips DI), `WORK`, `MIN_FREE_GB`, `RO=0` (drop `--read-only`),
+`GPU` (`all` or an index) and `PORT_OFF` (added to every server port: **give each concurrent run on one host its own `PORT_OFF`**, runs with the same offset collide),
+`LOAD_MAX_CHARS` (drop load-test items whose state is longer; for models without an input cap), `SKIP_AGREEMENT=1` + `AGREEMENT_RAW` (load-only rerun, with a warm-up), `TAG` (results-file suffix),
 `REAX_OPTS` (backend options). Reference server for Rune is the reax-subnet `s1-pro` runtime image (`REF_IMAGE`, or built from
 `REAX_SUBNET_DIR`). The script rents and stops nothing on the pod.
