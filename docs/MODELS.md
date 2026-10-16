@@ -37,9 +37,11 @@ models' own `answer()` shapes handle the rest.
 
 d3's `decision_config.json` (revision 225be8b, 15 Oct 2026) says `"attention_mode": "noncausal_full_attention"`, `"pooling": "last"`,
 `"readout_dtype": "float32"`, `"temperature": 1.0`. So **d3's 16 full-attention layers are noncausal** (as pplx-decider's; the
-48 Gated-DeltaNet layers stay causal). `PplxEngine` asserts this mode at load. The earlier private d3 engine (same code path) served d3
-in production with 0 argmax flips against the author runtime on the public sets (12 Oct 2026, below), which is the practical evidence
-that the engine implements d3's attention correctly; the modelling code in the HF repo was not read for this registry entry.
+48 Gated-DeltaNet layers stay causal). `PplxEngine` asserts this mode at load. The modelling code in the HF repo was not read for this registry
+entry. Practical evidence that the engine implements d3's attention correctly: the earlier private d3 engine (same code path) was
+compared with the author runtime on the public sets on 12 Oct 2026 and all score CIs of the paired delta included 0; its live
+P300 top-1 agreement with the previous production model was 0.963 (n=297). Per-decision agreement with the author runtime has to
+be re-measured with `bench/pod_validate.sh d3`.
 
 d3 port notes (from the private engine branch, ported with `engine/d3_contract.py` and additive edits to `pplx_engine.py` /
 `fp4_triton.py`, pplx numerics unchanged):
@@ -50,7 +52,7 @@ d3 port notes (from the private engine branch, ported with `engine/d3_contract.p
   kernels (prompts above 64k tokens overflowed int32), opt-in `PPLX_EMBED_CPU=1` (bf16 embedding table in host RAM, 2.4 GiB less VRAM).
 
 Measured with the private branch this port derives from (RTX PRO 6000 Blackwell, DI-1000 / P300, 12 Oct 2026): author bf16 5.40 DI
-decisions/s; REAX FP8 15.43 (2.86x), c1 p50 52.6 ms / p95 93 ms, 0 flips, 28.7 GiB. **Not yet re-measured from this repo.**
+decisions/s; REAX FP8 15.43 (2.86x), c1 p50 52.6 ms / p95 93 ms, 28.7 GiB, c1 determinism 0 flips in 4 x 199 P300 repeats. **Not yet re-measured from this repo.**
 
 ## vLLM presets (named, `engine/backends/vllm_readout.py`)
 
