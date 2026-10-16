@@ -227,6 +227,12 @@ RUNE_DEFAULTS = dict(temperatures={"choice": 2.0, "score": 2.0, "noul": 2.0}, ma
                      max_state_tokens=0, min_state_tokens=0, default_temperature=2.0)
 
 
+# Blink v0.3 speaks the same "decisions v1" prompt as Rune (so family "blink" takes the Rune encode path); one T for all
+# question types (decision_config.json: recommended_decision_temperature), native cap 26 option letters.
+BLINK_DEFAULTS = dict(temperatures={"choice": 1.3, "score": 1.3, "noul": 1.3}, max_options=26, max_prompt_tokens=32000,
+                      max_state_tokens=0, min_state_tokens=0, default_temperature=1.3)
+
+
 def _size_bucket(k):
     return "2" if k <= 2 else "3-5" if k <= 5 else "6-10" if k <= 10 else "11+"
 
@@ -237,7 +243,7 @@ def temperature_for(temps: dict, qtype: str, k: int, default=1.0) -> float:
 
 
 def load_family_config(family: str, model_dir=None, **overrides) -> FamilyConfig:
-    base = dict(QUYET_DEFAULTS if family == "quyet" else RUNE_DEFAULTS)
+    base = dict({"quyet": QUYET_DEFAULTS, "blink": BLINK_DEFAULTS}.get(family, RUNE_DEFAULTS))
     qc = Path(model_dir or ".") / "quyet_config.json"
     if family == "quyet" and model_dir and qc.is_file():
         j = json.loads(qc.read_text())
@@ -471,8 +477,25 @@ RUNE_PRESETS = {p.name: p for p in (
            gates="DI +0.24 [-1.30,+1.62], P300 cap +1.50 [-1.32,+2.92] vs stock; 0/300 c1 flips"),
 )}
 
-PRESETS = {"quyet": QUYET_PRESETS, "rune": RUNE_PRESETS}
-DEFAULT_PRESET = {"quyet": "bf16", "rune": "deterministic"}
+_B_BASE = ("--dtype", "auto", "--max-model-len", "32768", "--logprobs-mode", "processed_logprobs", "--max-logprobs", "256",
+           "--seed", "0", "--quantization", "modelopt_fp4", "--kv-cache-dtype", "fp8", "--enable-prefix-caching",
+           "--chat-template-content-format", "string", *_mm('{"image":0,"audio":0,"video":0}'))
+_MEAS_B = "measured 11 Oct 2026 (Lium RTX PRO 6000 Blackwell 96 GB, vLLM 0.30.0 pinned image), recipe ported; "
+BLINK_PRESETS = {p.name: p for p in (
+    Preset("bi1", "batch-invariant kernels (VLLM_BATCH_INVARIANT=1), NVFP4 weights, FP8 KV, prefix caching, 256 seqs, 16384-token batches",
+           _B_BASE + ("--max-num-seqs", "256", "--max-num-batched-tokens", "16384", "--gpu-memory-utilization", "0.9"),
+           env={"VLLM_BATCH_INVARIANT": "1"},
+           measured=_MEAS_B + "93.98 (previous recipe) -> 97.12 DI-1000 decisions/s (+3.3 %); production s1-fast-2 recipe",
+           gates="0/300 c1 flips over repeated passes; DI -0.09 [-1.88,+1.95], P300 cap +0.15 [-2.99,+4.52] vs stock vLLM; agreement-by-flip exact"),
+    Preset("bi1-memory30", "bi1 with --gpu-memory-utilization 0.30 (31 GiB peak measured; 32k context)",
+           _B_BASE + ("--max-num-seqs", "256", "--max-num-batched-tokens", "16384", "--gpu-memory-utilization", "0.30"),
+           env={"VLLM_BATCH_INVARIANT": "1"},
+           measured=_MEAS_B + "peak 31,045 MiB, c1 p50 31.9 ms; throughput at this setting not measured",
+           gates="0/300 c1 flips over two passes; P300 probabilities identical to bi1 (informational)"),
+)}
+
+PRESETS = {"quyet": QUYET_PRESETS, "rune": RUNE_PRESETS, "blink": BLINK_PRESETS}
+DEFAULT_PRESET = {"quyet": "bf16", "rune": "deterministic", "blink": "bi1"}
 
 
 def preset_for(family: str, name: str | None = None) -> Preset:

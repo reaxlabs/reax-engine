@@ -76,6 +76,11 @@ def _rune(model_dir, **opts):
     return VllmReadoutBackend(model_dir, family="rune", name="rune-26b-a4b", **opts)
 
 
+def _blink(model_dir, **opts):
+    from engine.backends.vllm_readout import VllmReadoutBackend
+    return VllmReadoutBackend(model_dir, family="blink", name="blink-v0.3-26b-a4b", **opts)
+
+
 def _gguf(name):
     def make(model_dir, **opts):
         from engine.backends import gguf_cpu  # module comes from the cpu slice
@@ -129,6 +134,15 @@ _SPECS = (
         backend_kind="vllm", status="vllm-backed", factory=_rune, gated=True, weights_gb=52,
         hardware="80+ GB card (60 GB minimum); measured RTX PRO 6000 97.9 GB",
         notes="Rune's own config.json is not readable without the gate; architecture is taken from the base model's config."),
+    ModelSpec(
+        id="blink-v0.3-26b-a4b", aliases=("blink", "s1-fast-2"),
+        hf_repo="PixilabAI/Blink-v0.3-26B-A4B-NVFP4", revision="08caad20c1574fb76341ca809ff38fdb081f7d4a",
+        licence="Apache-2.0", licence_notice="Apache-2.0 per the model card tag (base google/gemma-4-26B-A4B-it, Apache-2.0); the repo ships no LICENSE file. Weights are not mirrored here.",
+        params="~26B (4B active)", arch="Gemma-4 MoE, NVFP4 (ModelOpt) checkpoint, 17.5 GB; needs a Blackwell GPU (NVFP4)",
+        readout="Surogate decisions v1 (same prompt as Rune), letters A..Z (two-letter codes above 26 options), softmax over processed logprobs / T=1.3",
+        backend_kind="vllm", status="vllm-backed", factory=_blink, weights_gb=17.5,
+        hardware="Blackwell GPU (NVFP4); 31 GiB peak measured at utilization 0.30, 32k context; measured RTX PRO 6000",
+        notes="serving recipe = vLLM with the bi1 preset (batch-invariant, c1 zero flips); the author's own readme serves it with plain vLLM."),
     ModelSpec(
         id="gutsy-0.8b", aliases=("gutsy", "s1-cpu"),
         hf_repo="kouhxp/gutsy", revision="f9995fe26a337f1a4ea3f1a5ed38c9799e5a8f63",
