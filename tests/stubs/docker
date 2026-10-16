@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# docker stand-in for the pod_validate dry run: `run -d --name N` starts tests/fake_decide_server.py on the port of that name.
+STUB=${STUB_DIR:?}; mkdir -p "$STUB"; echo "docker $*" >> "$STUB/calls.log"
+case "$1" in
+  build|logs) exit 0 ;;
+  image) echo "sha256:fakeimage"; exit 0 ;;
+  run)
+    shift; name=""; while [ $# -gt 0 ]; do [ "$1" = --name ] && name=$2; shift; done
+    port=8001; [ "$name" = reax-cand ] && port=8741
+    nohup python3 "$FAKE_SERVER" "$port" > /dev/null 2>&1 & echo $! > "$STUB/$name.pid"; echo fakeid; exit 0 ;;
+  ps) name=${*: -1}; name=${name#name=}; [ -f "$STUB/$name.pid" ] && kill -0 "$(cat "$STUB/$name.pid")" 2>/dev/null && echo fakeid; exit 0 ;;
+  rm) for n in reax-ref reax-cand; do [ -f "$STUB/$n.pid" ] && kill "$(cat "$STUB/$n.pid")" 2>/dev/null && rm -f "$STUB/$n.pid"; done; exit 0 ;;
+esac
+exit 0

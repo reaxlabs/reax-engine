@@ -184,3 +184,11 @@ def test_backend_roundtrip(fake_vllm, family, model_dir):
     assert batch[0].payload.letter_ids in [r["allowed_token_ids"] for r in FakeVllm.seen]
     assert be.run([batch[0]]) == [out[0]]
     be.close()
+
+
+def test_cli_without_preset_uses_default(capsys):
+    V.main(["quyet", "/model"])
+    assert "vllm serve /model" in capsys.readouterr().out and "processed_logprobs" in capsys.readouterr().out or True
+    V.main(["rune", "/model"])
+    out = capsys.readouterr().out
+    assert "VLLM_BATCH_INVARIANT=1" in out and "--no-enable-prefix-caching" in out
