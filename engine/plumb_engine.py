@@ -28,6 +28,10 @@ from pplx_engine import PplxEngine
 
 LETTERS = "ABCDEFGHIJKLMNOP"
 MAX_OPTIONS = len(LETTERS)
+# (sequences, padded tokens per sequence) of the CUDA graphs captured at start-up
+GRAPH_SHAPES = ([(1, n) for n in (128, 192, 256, 320, 384, 512, 768, 1024, 1536, 2048, 3072, 4096)]
+                + [(2, n) for n in (128, 192, 256, 384, 512)] + [(4, n) for n in (128, 192, 256, 384)]
+                + [(8, n) for n in (128, 192, 256)])
 SYSTEM = (
     "Apply the supplied criterion to the supplied evidence. Choose exactly one listed option. "
     "Respond with only its uppercase letter, with no explanation or reasoning."
@@ -65,6 +69,8 @@ class PlumbEngine(PplxEngine):
     def __init__(self, model_dir, **kw):
         kw.setdefault("causal", True)
         self.letter_ids = None
+        self.graphs = {}
+        self.graph_waste = float(os.environ.get("PLUMB_GRAPH_WASTE", "1.5"))  # use a graph if padded tokens <= waste * real
         super().__init__(model_dir, **kw)
 
     def _read_weights(self, device):
@@ -87,10 +93,80 @@ class PlumbEngine(PplxEngine):
         self.readout = self.embed[torch.tensor(self.letter_ids, device=device)].to(self.dtype).contiguous()
         return W
 
+    # ------------------------------------------------------------ batches
     @torch.inference_mode()
     def letter_logits(self, ids: torch.Tensor, lens: list[int]) -> torch.Tensor:
         """ids: packed [T] int64 on device -> [N, 16] float32 letter logits (before / T)."""
         return self.forward(ids, lens)
+
+    def logits(self, arrays: list[np.ndarray]) -> np.ndarray:
+        """Token-id arrays of N decisions -> [N, 16] float32 letter logits on the host. Small batches replay a CUDA graph
+        of the padded shape [B sequences x n tokens] (right padding: every layer is causal, so the read last tokens are
+        unaffected); everything else runs the packed varlen path."""
+        lens = [len(a) for a in arrays]
+        g = self._pick_graph(lens)
+        if g is not None:
+            return g.run(arrays, lens)
+        ids = torch.from_numpy(np.concatenate(arrays)).to(self.device, non_blocking=True)
+        return self.letter_logits(ids, lens).cpu().numpy()
+
+    def _pick_graph(self, lens):
+        if not self.graphs:
+            return None
+        B, n, tot = len(lens), max(lens), sum(lens)
+        best = None
+        for (gb, gn), g in self.graphs.items():
+            if gb >= B and gn >= n and gb * gn <= self.graph_waste * tot + 64 and (best is None or gb * gn < best[0]):
+                best = (gb * gn, g)
+        return best[1] if best else None
+
+    @torch.inference_mode()
+    def capture_graphs(self, shapes):
+        pool = torch.cuda.graph_pool_handle()
+        for B, n in shapes:
+            if (B, n) not in self.graphs:
+                self.graphs[(B, n)] = _Graph(self, B, n, pool)
+
+
+class _Graph:
+    """CUDA graph of the whole forward for B sequences padded to n tokens (static ids / last-token index buffers)."""
+
+    def __init__(self, eng: PlumbEngine, B: int, n: int, pool):
+        self.eng, self.B, self.n = eng, B, n
+        dev = eng.device
+        self.ids = torch.zeros(B * n, dtype=torch.int64, device=dev)
+        self.last = torch.arange(B, device=dev, dtype=torch.int64) * n + (n - 1)
+        cu = torch.arange(B + 1, device=dev, dtype=torch.int32) * n
+        offs = list(range(0, (B + 1) * n, n))
+        cos, sin = eng._rope_tables([n] * B, dev)
+        self.host_ids = torch.zeros(B * n, dtype=torch.int64).pin_memory()
+        self.host_last = torch.zeros(B, dtype=torch.int64).pin_memory()
+
+        def fwd():
+            return eng._drive([eng._core_gen(self.ids, cu, cu.long(), offs, n, self.last, cos, sin)], [None])[0]
+        stream = torch.cuda.Stream()
+        stream.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(stream):
+            for _ in range(3):
+                fwd()
+        torch.cuda.current_stream().wait_stream(stream)
+        self.graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(self.graph, pool=pool):
+            self.out = fwd()
+
+    def run(self, arrays, lens):
+        n, hi, hl = self.n, self.host_ids.numpy(), self.host_last.numpy()
+        hi[:] = 0
+        for b, a in enumerate(arrays):
+            hi[b * n: b * n + len(a)] = a
+            hl[b] = b * n + len(a) - 1
+        # unused sequences: read their own last position (garbage rows, dropped below)
+        for b in range(len(arrays), self.B):
+            hl[b] = b * n + n - 1
+        self.ids.copy_(self.host_ids, non_blocking=True)
+        self.last.copy_(self.host_last, non_blocking=True)
+        self.graph.replay()
+        return self.out[: len(arrays)].cpu().numpy()
 
 
 class PlumbBackend:
@@ -134,9 +210,7 @@ class PlumbBackend:
 
     # --------------------------------------------------------------- scheduler thread
     def run(self, batch):
-        lens = [e.n_tokens for e in batch]
-        ids = torch.from_numpy(np.concatenate([e.payload for e in batch])).to(self.device, non_blocking=True)
-        logits = self.engine.letter_logits(ids, lens).cpu().numpy()
+        logits = self.engine.logits([e.payload for e in batch])
         out = []
         for row, e in zip(logits, batch):
             r = row[: e.n_options] / self.temperature
@@ -152,6 +226,8 @@ class PlumbBackend:
 
         def item(n):
             return E(payload=np.ones(n, dtype=np.int64), n_tokens=n, n_options=rng.randint(2, 8))
+        if os.environ.get("PLUMB_GRAPHS", "1") == "1":
+            self.engine.capture_graphs(GRAPH_SHAPES)
         shapes = [[n] for n in (17, 64, 192, 300, 700, 1500, 3000, 4096)]
         shapes += [[200] * k for k in (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64)]
         for lens in shapes:

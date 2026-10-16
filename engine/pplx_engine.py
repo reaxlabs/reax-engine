@@ -747,10 +747,19 @@ class PplxEngine:
         cu64 = cu.long()
         max_len = max(lens)
         last_idx = cu64[1:] - 1
-        pos = torch.cat([torch.arange(n, device=dev) for n in lens]).float()
+        cos, sin = self._rope_tables(lens, dev)
+        return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin))
+
+    def _rope_tables(self, lens, dev):
+        import numpy as np
+        pos = torch.from_numpy(np.concatenate([np.arange(n, dtype=np.float32) for n in lens])).to(dev)
         freqs = pos[:, None] * self.inv_freq[None]
         emb = torch.cat([freqs, freqs], -1)
-        cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
+        return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
+
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin):
+        """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
+        inside a CUDA graph with static `ids` / `last_idx`)."""
         h = F.embedding(ids, self.embed)
         fq = self.linear_mode == "fp8" and self.fused_quant
         if fq and self._first_mode(self.layers[0]) == "fp8":
