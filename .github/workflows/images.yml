@@ -1,0 +1,73 @@
+name: images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # CPU-only unit tests (fake backends, fake vLLM server); no GPU, no model weights.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pytest uvicorn aiohttp
+      - run: python -m pytest -q tests
+
+  s1-fast:
+    # Builds docker/s1-fast/Dockerfile and pushes it to GHCR on version tags and manual runs.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/reaxlabs/reax-engine-s1-fast
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image tags
+        id: tags
+        run: |
+          short="sha-$(git rev-parse --short=7 HEAD)"
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then main="${GITHUB_REF_NAME}"; else main="${short}"; fi
+          {
+            echo "list<<EOF"
+            echo "${IMAGE}:${short}"
+            [ "${main}" != "${short}" ] && echo "${IMAGE}:${main}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/s1-fast/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
+      - name: Pushed digest
+        run: |
+          {
+            echo "### reax-engine-s1-fast"
+            echo
+            echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo
+            echo "Pull by digest: \`${IMAGE}@${{ steps.push.outputs.digest }}\`"
+            echo
+            echo "Tags:"
+            echo '${{ steps.tags.outputs.list }}' | sed 's/^/- `/; s/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"

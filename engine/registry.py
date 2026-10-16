@@ -52,8 +52,13 @@ class ModelSpec:
 
 # ------------------------------------------------------------------------------------------------ factories (lazy)
 def _plumb(model_dir, **opts):
-    from engine import plumb_engine  # module comes from the plumb slice: expected hook load(model_dir, **opts) -> Backend
-    return plumb_engine.load(model_dir, **opts)
+    import sys
+    from pathlib import Path
+    here = str(Path(__file__).resolve().parent)  # plumb_engine imports pplx_engine as a flat top-level module
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    from plumb_engine import PlumbBackend
+    return PlumbBackend(model_dir, **opts)
 
 
 def _pplx(model_dir, **opts):
@@ -83,7 +88,7 @@ def _blink(model_dir, **opts):
 
 def _gguf(name):
     def make(model_dir, **opts):
-        from engine.backends import gguf_cpu  # module comes from the cpu slice
+        from engine.backends import gguf_cpu
         return gguf_cpu.load(name, model_dir, **opts)
     return make
 
@@ -151,7 +156,7 @@ _SPECS = (
         readout="author prompt (State/Question/Options), letters A..P, one pass, per-type temperatures (choice 1.0628 / score 1.0 / yes-no 0.7652)",
         backend_kind="gguf-cpu", status="cpu", factory=_gguf("gutsy-0.8b"), weights_gb=0.8,
         hardware="CPU only (AVX2 or NEON), >= 4 cores, 4 GB RAM; ~1 s/decision on 4 cores",
-        notes="backend module engine/backends/gguf_cpu.py comes from the cpu slice"),
+        notes="backend: engine/backends/gguf_cpu.py (llama.cpp CPU)"),
     ModelSpec(
         id="plumb-4b-q8", aliases=("s1-lite", "plumb-q8"),
         hf_repo="crh225/plumb-4b-GGUF", revision="71c1c57e523219124f7be9c486d475d19891185f",
@@ -160,7 +165,7 @@ _SPECS = (
         readout="same jevk5 prompt and T=2.07 as plumb-4b; Q8-vs-bf16 mean probability distance 0.115",
         backend_kind="gguf-cpu", status="cpu", factory=_gguf("plumb-4b-q8"), weights_gb=4.5,
         hardware="CPU works but is slow; manifest asks one NVIDIA GPU >= 8 GB",
-        notes="backend module engine/backends/gguf_cpu.py comes from the cpu slice"),
+        notes="backend: engine/backends/gguf_cpu.py (llama.cpp CPU)"),
     ModelSpec(
         id="s1-llm-auto-router", aliases=("llm-auto-router",),
         hf_repo="decisionmodels/s1-llm-auto-router", revision="572c5b6cdb53b77fbb26ed33568ebbc5b71c69c0",

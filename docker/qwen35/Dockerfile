@@ -21,4 +21,4 @@ COPY LICENSE NOTICE /licenses/
 ENV PYTHONPATH=/opt/reax HOME=/tmp TRITON_CACHE_DIR=/tmp/triton XDG_CACHE_HOME=/tmp/.cache TORCHINDUCTOR_CACHE_DIR=/tmp/inductor
 WORKDIR /opt/reax
 # default: the REAX server; override the command for a reference server
-ENTRYPOINT ["python", "-m", "engine.mini_serve"]
+ENTRYPOINT ["python", "-m", "engine.serve"]

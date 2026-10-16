@@ -15,7 +15,11 @@ on a queue; ONE scheduler thread (the only one that touches the GPU) takes every
 0 = never wait: a lone request runs immediately, a burst is packed because requests pile up while a step runs) and
 hands the probabilities back to the event loop in one callback per step.
 
-    python engine/serve.py --model plumb-4b            # weights at $PLUMB_MODEL_DIR (default /model)
+Models: every id of engine/registry.py (`python -m engine.registry`); plumb-4b has its own fast path, the others are built
+by their registry factory with `--opt key=value` (JSON values) passed through as backend options.
+
+    python engine/serve.py --model plumb-4b                    # weights at $PLUMB_MODEL_DIR (default /model)
+    python -m engine.serve --model quyet-1.0-large --model-dir /model --host 0.0.0.0 --port 8741 --opt preset=fp8-kv
 """
 from __future__ import annotations
 
@@ -35,6 +39,7 @@ HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent)]
 
 from backends.base import sidecar_answer  # noqa: E402
+from backends.common import s1_answer  # noqa: E402
 
 LONG_TEXT = 20000  # request bodies longer than this are tokenised in a worker thread, not on the event loop
 
@@ -124,23 +129,31 @@ class App:
         self.be, self.sched, self.token, self.model = backend, sched, token.encode(), model_name
         self.ready = False
         self.loop_hdr = b"x-s1m-internal-token"
-        self._shape = getattr(backend, "answer", None)
+        self._inline = getattr(backend, "encode_inline", False)  # False: encode in worker threads (HF tokenisers, llama.cpp)
+        own = getattr(backend, "answer", None)  # the model's own answer shape (used by /v1/systemone)
+        if backend.kind == "gguf-cpu":
+            s1 = own
+        elif backend.name == "plumb-4b":
+            s1 = lambda q, p: sidecar_answer(q, backend.options(q), p)  # noqa: E731
+        else:
+            s1 = lambda q, p: s1_answer(q["type"], backend.options(q), p)  # noqa: E731
+        self._shape = {"/internal/v1/decide": s1, "/v1/systemone": own or s1}
 
     # -------- one decision (all questions of a request are batched together)
-    async def decide(self, state, questions: dict, long_body: bool = False):
+    async def decide(self, state, questions: dict, path: str, long_body: bool = False):
         loop = asyncio.get_running_loop()
-        encs = {}
-        for qid, q in questions.items():
-            encs[qid] = await loop.run_in_executor(None, self.be.encode, state, q) if long_body else self.be.encode(state, q)
+        if long_body or not self._inline:
+            encs = dict(zip(questions, await asyncio.gather(
+                *(loop.run_in_executor(None, self.be.encode, state, q) for q in questions.values()))))
+        else:
+            encs = {qid: self.be.encode(state, q) for qid, q in questions.items()}
         futs = {}
         for qid, enc in encs.items():
             futs[qid] = loop.create_future()
             self.sched.submit(enc, loop, futs[qid])
         probs = {qid: await f for qid, f in futs.items()}
-        answers = {}
-        for qid, q in questions.items():
-            keys = self.be.options(q)
-            answers[qid] = self._shape(q, probs[qid]) if self._shape else sidecar_answer(q, keys, probs[qid])
+        shape = self._shape[path]
+        answers = {qid: shape(q, probs[qid]) for qid, q in questions.items()}
         return answers, sum(e.n_tokens for e in encs.values())
 
     async def __call__(self, scope, receive, send):
@@ -158,7 +171,7 @@ class App:
         if path == "/health" and method == "GET":
             if not self.ready:
                 return await self._json(send, 503, {"ok": False, "status": "warming up"})
-            return await self._json(send, 200, {"ok": True, "model": self.model, "steps": self.sched.steps,
+            return await self._json(send, 200, {"ok": True, "model": self.model, "kind": self.be.kind, "steps": self.sched.steps,
                                                 "decisions": self.sched.decisions})
         if method != "POST" or path not in ("/internal/v1/decide", "/v1/systemone"):
             return await self._json(send, 404, {"error": {"message": "not found"}})
@@ -189,13 +202,15 @@ class App:
             for q in questions.values():
                 if not isinstance(q, dict) or q.get("type") not in ("choice", "noul", "score"):
                     raise ValueError("bad question type")
-                q.setdefault("instructions", "")
         except Exception as exc:  # noqa: BLE001
             return await self._json(send, 400, {"error": {"message": f"bad request: {type(exc).__name__}"}})
         try:
-            answers, n = await self.decide(state, questions, sum(map(len, chunks)) > LONG_TEXT)
-        except ValueError as exc:
-            return await self._json(send, 400, {"error": {"message": str(exc)}})
+            answers, n = await self.decide(state, questions, path, sum(map(len, chunks)) > LONG_TEXT)
+        except ValueError as exc:  # 422 for a too long prompt of the vLLM-backed models (the reference adapters' status)
+            code = 422 if "maximum context length" in str(exc) else 400
+            return await self._json(send, code, {"error": {"message": str(exc)}})
+        except (KeyError, TypeError) as exc:  # malformed question of a backend that does not wrap its own parsing
+            return await self._json(send, 400, {"error": {"message": f"bad request: {type(exc).__name__}"}})
         except Exception as exc:  # noqa: BLE001
             return await self._json(send, 500, {"error": {"message": f"{type(exc).__name__}"}})
         await self._json(send, 200, {"model": self.model, "answers": answers,
@@ -235,21 +250,52 @@ def verify_weights(model_dir: str, manifest_path: str) -> None:
 
 
 # ------------------------------------------------------------------------------------------------ main
+def parse_opts(pairs) -> dict:
+    """`--opt key=value` (value JSON if it parses, else a string) -> backend keyword arguments."""
+    out = {}
+    for p in pairs:
+        k, _, v = p.partition("=")
+        try:
+            out[k.replace("-", "_")] = json.loads(v)
+        except json.JSONDecodeError:
+            out[k.replace("-", "_")] = v
+    return out
+
+
 def load_backend(name: str, a):
-    if name == "plumb-4b":
+    from engine import registry
+    try:
+        spec = registry.get(name)
+    except KeyError as exc:
+        raise SystemExit(str(exc.args[0])) from None
+    opts = parse_opts(a.opt)
+    if spec.id == "plumb-4b":
         from plumb_engine import PlumbBackend
-        kw = {}
+        kw = dict(opts)
         if a.batch_tokens:
             kw["max_batch_tokens"] = a.batch_tokens
         return PlumbBackend(a.model_dir, compile=a.compile, **kw)
-    raise SystemExit(f"unknown model {name!r} (known: plumb-4b)")
+    if spec.backend_kind == "gguf-cpu" and not a.no_verify:  # pinned weight file (the other models: --manifest)
+        from engine.backends.gguf_cpu import SPECS
+        f = SPECS[spec.id]
+        if not (Path(a.model_dir) / f.file).is_file() or _sha(Path(a.model_dir) / f.file) != f.sha256:
+            sys.exit(f"weights mismatch or missing: {f.file}")
+    try:
+        return registry.build(spec.id, a.model_dir, **opts)
+    except NotImplementedError as exc:
+        raise SystemExit(str(exc)) from None
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="plumb-4b")
-    ap.add_argument("--model-dir", default=os.environ.get("PLUMB_MODEL_DIR", "/model"))
+    ap.add_argument("--model", default="plumb-4b", help="registry id or alias (python -m engine.registry)")
+    ap.add_argument("--model-dir", default=next((os.environ[v] for v in ("PLUMB_MODEL_DIR", "REAX_MODEL_DIR", "GGUF_MODEL_DIR")
+                                                 if os.environ.get(v)), "/model"))
+    ap.add_argument("--host", default=None, help="default $RUNTIME_HOST or 127.0.0.1 ($RUNTIME_UDS wins over host and port)")
+    ap.add_argument("--port", type=int, default=None, help="default $RUNTIME_PORT or 8101")
+    ap.add_argument("--opt", action="append", default=[], help="backend option key=value (JSON values), repeatable")
     ap.add_argument("--manifest", default=os.environ.get("REAX_MANIFEST", ""), help="release manifest to verify weights against")
+    ap.add_argument("--no-verify", action="store_true", help="skip the weight checks (manifest, pinned GGUF file)")
     ap.add_argument("--compile", default=os.environ.get("REAX_COMPILE", "1"))
     ap.add_argument("--batch-tokens", type=int, default=0)
     ap.add_argument("--max-wait-ms", type=float, default=float(os.environ.get("REAX_MAX_WAIT_MS", "0")))
@@ -257,30 +303,31 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     token = _token()
-    if a.manifest and Path(a.manifest).is_file():
+    if a.manifest and not a.no_verify and Path(a.manifest).is_file():
         verify_weights(a.model_dir, a.manifest)
     backend = load_backend(a.model, a)
     sched = Scheduler(backend, a.max_wait_ms)
-    app = App(backend, sched, token, "s1-fast" if a.model == "plumb-4b" else a.model)
+    app = App(backend, sched, token, "s1-fast" if backend.name == "plumb-4b" else backend.name)
 
     def warm():
         t0 = time.time()
         try:
-            if not a.no_warmup:
+            if not a.no_warmup and getattr(backend, "serve_warmup", True) and hasattr(backend, "warmup"):
                 backend.warmup()
         except BaseException:  # noqa: BLE001 - a failed warm-up must stop the container, not leave /health at 503 forever
             import traceback
             traceback.print_exc()
             os._exit(1)
         app.ready = True
-        print(f"ready: warm-up {time.time() - t0:.0f}s", flush=True)
+        print(f"ready: {backend.name} ({backend.kind}) warm-up {time.time() - t0:.0f}s", flush=True)
 
     import uvicorn
     kw = dict(log_level="warning", access_log=False, lifespan="on", timeout_keep_alive=75)
     if os.environ.get("RUNTIME_UDS"):
         kw["uds"] = os.environ["RUNTIME_UDS"]
     else:
-        kw.update(host=os.environ.get("RUNTIME_HOST", "127.0.0.1"), port=int(os.environ.get("RUNTIME_PORT", "8101")))
+        kw.update(host=a.host or os.environ.get("RUNTIME_HOST", "127.0.0.1"),
+                  port=a.port or int(os.environ.get("RUNTIME_PORT", "8101")))
     sched.start(on_ready=warm)
     uvicorn.run(app, **kw)
 

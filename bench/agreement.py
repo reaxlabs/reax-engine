@@ -44,7 +44,7 @@ class Endpoint:
         body = json.dumps({"model": self.model, "state": item.state, "questions": {item.qid: item.question}}).encode()
         path = "/v1/systemone" if self.contract == "systemone" else "/internal/v1/decide"
         headers = {"Content-Type": "application/json"}
-        if self.contract == "s1" and self.token:
+        if self.token:
             headers["X-S1M-Internal-Token"] = self.token
         req = urllib.request.Request(self.target.rstrip("/") + path, data=body, headers=headers)
         t0 = time.perf_counter()
