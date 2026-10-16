@@ -69,10 +69,22 @@ def prompt_text(state, criterion, options: list[str]) -> str:
 class PlumbEngine(PplxEngine):
     HOST_CU_DEFAULT = "1"
 
-    def __init__(self, model_dir, **kw):
+    def __init__(self, model_dir, exact=None, **kw):
+        # exact (default): op-for-op the HF module sequence the reference graphs capture (separate projections, bf16 torch
+        # conv, SDPA, full last layer), so a decision padded to its reference bucket is BIT-identical to the reference;
+        # fast: fused projections / fla conv / flash varlen / last-layer pruning (packed batches, not bit-identical).
+        self.exact = (os.environ.get("PLUMB_MODE", "exact") == "exact") if exact is None else exact
+        if self.exact:
+            kw.setdefault("fuse", False)
+            kw.setdefault("conv_impl", "torch")
+            kw.setdefault("attn_impl", "sdpa_cmask")
+            kw.setdefault("prune_last", False)
+            kw.setdefault("compile", False)
         kw.setdefault("causal", True)
+        kw.setdefault("gva_native", os.environ.get("PLUMB_GVA", "1"))
         self.letter_ids = None
         self.graphs = {}
+        self.runner = None
         self.graph_waste = float(os.environ.get("PLUMB_GRAPH_WASTE", "1.5"))  # use a graph if padded tokens <= waste * real
         super().__init__(model_dir, **kw)
 
@@ -102,10 +114,13 @@ class PlumbEngine(PplxEngine):
         """ids: packed [T] int64 on device -> [N, 16] float32 letter logits (before / T)."""
         return self.forward(ids, lens)
 
+    @torch.inference_mode()
     def logits(self, arrays: list[np.ndarray]) -> np.ndarray:
         """Token-id arrays of N decisions -> [N, 16] float32 letter logits on the host. Small batches replay a CUDA graph
         of the padded shape [B sequences x n tokens] (right padding: every layer is causal, so the read last tokens are
         unaffected); everything else runs the packed varlen path."""
+        if self.runner is not None:
+            return self.runner.logits(arrays)
         lens = [len(a) for a in arrays]
         g = self._pick_graph(lens)
         if g is not None:
@@ -122,6 +137,12 @@ class PlumbEngine(PplxEngine):
             if gb >= B and gn >= n and gb * gn <= self.graph_waste * tot + 64 and (best is None or gb * gn < best[0]):
                 best = (gb * gn, g)
         return best[1] if best else None
+
+    def start_runner(self, n_streams=None, buckets=None):
+        """Exact mode: capture the per-bucket graphs on every stream and route logits() through them."""
+        r = ExactRunner(self, n_streams or int(os.environ.get("PLUMB_STREAMS", "4")))
+        r.capture(buckets)
+        self.runner = r
 
     @torch.inference_mode()
     def capture_graphs(self, shapes):
@@ -153,7 +174,7 @@ def _fla_cache_entries(*keys):
 class _Graph:
     """CUDA graph of the whole forward for B sequences padded to n tokens (static ids / last-token index buffers)."""
 
-    def __init__(self, eng: PlumbEngine, B: int, n: int, pool):
+    def __init__(self, eng: PlumbEngine, B: int, n: int, pool, stream=None):
         self.eng, self.B, self.n = eng, B, n
         dev = eng.device
         self.ids = torch.zeros(B * n, dtype=torch.int64, device=dev)
@@ -169,19 +190,22 @@ class _Graph:
 
         def fwd():
             return eng._drive([eng._core_gen(self.ids, cu, cu64, offs, n, self.last, cos, sin, cu_cpu)], [None])[0]
-        stream = torch.cuda.Stream()
+        stream = stream or torch.cuda.Stream()
         stream.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(stream):
             for _ in range(3):
                 fwd()
         torch.cuda.current_stream().wait_stream(stream)
+        torch.cuda.synchronize()
         # fla memoises index tensors derived from cu_seqlens by object identity in small bounded caches; the graph reads
         # them, so keep them alive (and the cache entries hit during capture) for as long as the graph exists
         self._keep = (cu, cu64, cu_cpu, cos, sin, offs, _fla_cache_entries(cu64, cu_cpu))
         self.graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(self.graph, pool=pool):
+        with torch.cuda.graph(self.graph, pool=pool, stream=stream):
             self.out = fwd()
+        torch.cuda.synchronize()
 
+    @torch.inference_mode()
     def run(self, arrays, lens):
         n, hi, hl = self.n, self.host_ids.numpy(), self.host_last.numpy()
         hi[:] = 0
@@ -195,6 +219,77 @@ class _Graph:
         self.last.copy_(self.host_last, non_blocking=True)
         self.graph.replay()
         return self.out[: len(arrays)].cpu().numpy()
+
+
+# The reference's padded lengths (jevk5.runtime.GRAPH_LENGTHS): a decision of L tokens is right-padded to the smallest of
+# these >= L, which fixes the GEMM shapes (hence cuBLAS kernels and rounding) of the reference run.
+REF_BUCKETS = (128, 192, 256, 320, 384, 512, 640, 768, 1024, 1536, 2048, 3072, 4096)
+
+
+class ExactRunner:
+    """Bit-faithful multi-stream executor. One CUDA graph per (stream, reference bucket) holds the whole forward of ONE
+    decision padded to its bucket; decisions of a step are spread over `n_streams` streams and replayed concurrently, so
+    every decision gets exactly the numbers the reference computes, whatever the concurrency, while the GPU overlaps the
+    latency-bound kernels of several decisions."""
+
+    def __init__(self, eng: PlumbEngine, n_streams: int, buckets=REF_BUCKETS, max_items=256):
+        self.eng, self.buckets = eng, tuple(buckets)
+        self.streams = [torch.cuda.Stream() for _ in range(n_streams)]
+        self.pools = [torch.cuda.graph_pool_handle() for _ in range(n_streams)]
+        self.graphs: dict = {}
+        self.max_items = max_items
+        self.stage_ids = torch.zeros(max_items, self.buckets[-1], dtype=torch.int64).pin_memory()
+        self.stage_last = torch.zeros(max_items, dtype=torch.int64).pin_memory()
+        self.stage_out = torch.zeros(max_items, MAX_OPTIONS, dtype=torch.float32).pin_memory()
+
+    @torch.inference_mode()
+    def capture(self, buckets=None):
+        for si, st in enumerate(self.streams):
+            for n in buckets or self.buckets:
+                if (si, n) not in self.graphs:
+                    self.graphs[(si, n)] = _Graph(self.eng, 1, n, self.pools[si], stream=st)
+
+    def bucket(self, n: int) -> int:
+        for b in self.buckets:
+            if b >= n:
+                return b
+        raise ValueError("input too long")
+
+    @torch.inference_mode()
+    def logits(self, arrays):
+        """-> [N, 16] float32 numpy (letter logits before / T). All decisions are enqueued first, then one sync."""
+        N = len(arrays)
+        out = np.empty((N, MAX_OPTIONS), dtype=np.float32)
+        for lo in range(0, N, self.max_items):
+            self._chunk(arrays[lo: lo + self.max_items], out[lo: lo + self.max_items])
+        return out
+
+    def _chunk(self, arrays, out):
+        S = len(self.streams)
+        load = [0] * S
+        used = [False] * S
+        ids_np, last_np = self.stage_ids.numpy(), self.stage_last.numpy()
+        order = sorted(range(len(arrays)), key=lambda i: -len(arrays[i]))  # longest first: balance the streams
+        for k, i in enumerate(order):
+            a = arrays[i]
+            n = self.bucket(len(a))
+            si = min(range(S), key=load.__getitem__)
+            load[si] += n
+            used[si] = True
+            g = self.graphs[(si, n)]
+            ids_np[k, : len(a)] = a
+            ids_np[k, len(a): n] = 0
+            last_np[k] = len(a) - 1
+            with torch.cuda.stream(self.streams[si]):
+                g.ids.copy_(self.stage_ids[k, :n], non_blocking=True)
+                g.last.copy_(self.stage_last[k: k + 1], non_blocking=True)
+                g.graph.replay()
+                self.stage_out[k].copy_(g.out[0], non_blocking=True)
+        for si, st in enumerate(self.streams):
+            if used[si]:
+                st.synchronize()
+        for k, i in enumerate(order):
+            out[i] = self.stage_out[k].numpy()
 
 
 class PlumbBackend:
@@ -254,7 +349,9 @@ class PlumbBackend:
 
         def item(n):
             return E(payload=np.ones(n, dtype=np.int64), n_tokens=n, n_options=rng.randint(2, 8))
-        if os.environ.get("PLUMB_GRAPHS", "1") == "1":
+        if self.engine.exact:
+            self.engine.start_runner(buckets=[b for b in REF_BUCKETS if b <= self.max_input_tokens])
+        elif os.environ.get("PLUMB_GRAPHS", "1") == "1":
             self.engine.capture_graphs(GRAPH_SHAPES)
         shapes = [[n] for n in (17, 64, 192, 300, 700, 1500, 3000, 4096)]
         shapes += [[200] * k for k in (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64)]

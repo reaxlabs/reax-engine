@@ -31,9 +31,11 @@ def dist(a, b):
     return T * max(abs((x - ma) - (y - mb)) for x, y in zip(ca, cb))
 
 
-ref = JevK5(model_dir, graphs=False)
+ref = JevK5(model_dir, graphs=os.environ.get("REF_GRAPHS", "0") == "1")
 refp = [list(ref.probabilities(r["state"], r["question"])[0].values()) for r in rows]
-be = PlumbBackend(model_dir, compile=os.environ.get("REAX_COMPILE", "1"))
+kw = {k: (os.environ[v] == "1" if k == "exact" else os.environ[v]) for k, v in (("attn_impl", "ATTN"), ("conv_impl", "CONV"), ("gva_native", "PLUMB_GVA"), ("fuse", "FUSE"), ("exact", "EXACT")) if v in os.environ}
+be = PlumbBackend(model_dir, compile=os.environ.get("REAX_COMPILE", "1"), **kw)
+print("engine kw", kw, "compile", os.environ.get("REAX_COMPILE", "1"), flush=True)
 encs = [be.encode(r["state"], r["question"]) for r in rows]
 ref_ids = [ref.encode(r["state"], r["question"]["instructions"], [t for _, t in decision_options(r["question"])]) for r in rows]
 assert all(list(e.payload) == i for e, i in zip(encs, ref_ids)), "token ids differ"
@@ -47,24 +49,22 @@ def report(name, got):
 
 
 t = time.time()
-single = [be.run([e])[0] for e in encs]
-torch.cuda.synchronize()
-report("eager_single", single)
-be.engine.capture_graphs(GRAPH_SHAPES)
-print("graph capture s", round(time.time() - t, 1), flush=True)
-report("graph_single", [be.run([e])[0] for e in encs])
+if be.engine.exact:
+    be.engine.start_runner(n_streams=int(os.environ.get("PLUMB_STREAMS", "4")))
+    print("runner capture s", round(time.time() - t, 1), flush=True)
+else:
+    single = [be.run([e])[0] for e in encs]
+    report("eager_single", single)
+    be.engine.capture_graphs(GRAPH_SHAPES)
+    print("graph capture s", round(time.time() - t, 1), flush=True)
+report("single", [be.run([e])[0] for e in encs])
 rng = random.Random(1)
 order = list(range(len(encs)))
 rng.shuffle(order)
-got = [None] * len(encs)
-for k in range(0, len(order), 16):
-    idx = order[k:k + 16]
-    for i, p in zip(idx, be.run([encs[i] for i in idx])):
-        got[i] = p
-report("batch16", got)
-got = [None] * len(encs)
-for k in range(0, len(order), 3):
-    idx = order[k:k + 3]
-    for i, p in zip(idx, be.run([encs[i] for i in idx])):
-        got[i] = p
-report("batch3_graph", got)
+for B in (3, 16, 64):
+    got = [None] * len(encs)
+    for k in range(0, len(order), B):
+        idx = order[k:k + B]
+        for i, p in zip(idx, be.run([encs[i] for i in idx])):
+            got[i] = p
+    report(f"batch{B}", got)

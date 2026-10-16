@@ -380,13 +380,15 @@ def rotate_half(x):
 # ---------------------------------------------------------------- model
 class PplxEngine:
     HOST_CU_DEFAULT = "0"
+    _trace = None
 
     def __init__(self, model_dir, device="cuda", linear_mode="bf16", attn_impl="auto", gva_native=False,
                  fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None,
-                 causal=False):
+                 causal=False, prune_last=True):
         self.dir = Path(model_dir)
         raw_cfg = json.loads((self.dir / "config.json").read_text())
         cfg = raw_cfg.get("text_config", raw_cfg)
+        self.prune_last = prune_last  # last layer: Q/o_proj/MLP/readout only on the last tokens (False: full layer, like HF)
         self.causal = causal  # full-attention layers: causal (decoder LMs) or noncausal (pplx-decider)
         self.cfg = cfg
         self.device = device
@@ -470,7 +472,7 @@ class PplxEngine:
             else:
                 q = p + "self_attn."
                 wq, wk, wv = W.pop(q + "q_proj.weight"), W.pop(q + "k_proj.weight"), W.pop(q + "v_proj.weight")
-                if i == self.n_layers - 1:  # last layer: Q only for readout rows, K/V for all tokens
+                if i == self.n_layers - 1 and self.prune_last:  # last layer: Q only for readout rows, K/V for all tokens
                     L["q_only"] = lin(wq, f"{i}.q")
                     L["kv_only"] = lin([wk, wv], f"{i}.kv")
                 else:
@@ -551,8 +553,9 @@ class PplxEngine:
             except Exception:  # noqa: BLE001
                 if self.attn_impl == "varlen":
                     raise
-        if self.attn_impl in ("sdpa", "sdpa_mask"):
+        if self.attn_impl in ("sdpa", "sdpa_mask", "sdpa_cmask"):
             self._varlen = None
+        self._tril_cache = {}
 
     def _attend(self, q, k, v, cu_q, cu_k, max_q, max_k, lens_q, lens_k, causal=False):
         """q [Tq, H, D], k/v [Tk, KV, D] -> [Tq, H, D], noncausal within each sequence (causal=True: causal, only with
@@ -565,7 +568,15 @@ class PplxEngine:
             qi = q[a:b].transpose(0, 1)[None]
             ki = k[c:d].transpose(0, 1)[None]
             vi = v[c:d].transpose(0, 1)[None]
-            if self.attn_impl == "sdpa_mask":  # HF path: bool padding mask [1,1,1,L] (forces the masked backend)
+            if self.attn_impl == "sdpa_cmask":  # what HF runs inside a CUDA graph: repeat_kv + explicit bool causal mask
+                r = self.nh // self.nkv
+                ki, vi = ki.repeat_interleave(r, dim=1), vi.repeat_interleave(r, dim=1)
+                n = ki.shape[2]
+                m = self._tril_cache.get((n, q.device))
+                if m is None:
+                    m = self._tril_cache[(n, q.device)] = torch.ones(n, n, dtype=torch.bool, device=q.device).tril()[None, None]
+                o = F.scaled_dot_product_attention(qi.contiguous(), ki, vi, attn_mask=m, scale=self.hd ** -0.5)
+            elif self.attn_impl == "sdpa_mask":  # HF path: bool padding mask [1,1,1,L] (forces the masked backend)
                 m = torch.ones(1, 1, 1, ki.shape[2], dtype=torch.bool, device=q.device)
                 r = self.nh // self.nkv  # HF repeat_kv when a mask is given
                 ki, vi = ki.repeat_interleave(r, dim=1), vi.repeat_interleave(r, dim=1)
@@ -599,7 +610,7 @@ class PplxEngine:
                 parts.append(y_i[0])
                 c0 += n_i
         else:  # HF reference fallback: bf16 F.conv1d per sequence, then silu in bf16
-            outs, offs = [], cu.tolist()
+            outs, offs = [], (cu_cpu if cu_cpu is not None else cu).tolist()
             for a0, b0 in zip(offs[:-1], offs[1:]):
                 xi = mixed[a0:b0].t()[None]
                 yi = F.conv1d(xi, L["conv_w"].unsqueeze(1), padding=3, groups=xi.shape[1])[..., : b0 - a0]
@@ -778,7 +789,7 @@ class PplxEngine:
             last = i == self.n_layers - 1
             if L["type"] == "linear_attention":
                 d = self._deltanet(L, x, cu64, xq, cu_cpu)
-            elif not last:
+            elif not (last and self.prune_last):
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq)
             else:
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq)
@@ -815,6 +826,10 @@ class PplxEngine:
             else:
                 h, x = K.add_rms(h, d, self.norm_w if last else self.layers[i + 1]["in_norm"], self.eps)
                 xq = None
+            if self._trace is not None:  # debugging: residual stream of the last token of every decision after each layer
+                self._trace.append((h if h.shape[0] == last_idx.shape[0] else h[last_idx]).float().clone())
+        if not self.prune_last:
+            x = x[last_idx]
         return F.linear(x, self.readout).float()
 
     def probs(self, logits, counts, temperature=None):
