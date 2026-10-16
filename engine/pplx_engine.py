@@ -380,10 +380,12 @@ def rotate_half(x):
 # ---------------------------------------------------------------- model
 class PplxEngine:
     def __init__(self, model_dir, device="cuda", linear_mode="bf16", attn_impl="auto", gva_native=False,
-                 fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None):
-        from safetensors import safe_open
+                 fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None,
+                 causal=False):
         self.dir = Path(model_dir)
-        cfg = json.loads((self.dir / "config.json").read_text())["text_config"]
+        raw_cfg = json.loads((self.dir / "config.json").read_text())
+        cfg = raw_cfg.get("text_config", raw_cfg)
+        self.causal = causal  # full-attention layers: causal (decoder LMs) or noncausal (pplx-decider)
         self.cfg = cfg
         self.device = device
         self.dtype = torch.bfloat16
@@ -425,36 +427,7 @@ class PplxEngine:
         if compile not in (False, "0", "false", "False", None):
             K.compile()
         fuse = fuse not in (False, "0", "false", "False")
-        dc = json.loads((self.dir / "decision_config.json").read_text())
-        self.temperature = float(dc["temperature"])
-        assert dc.get("attention_mode") == "noncausal_full_attention" and dc.get("pooling", "last") == "last"
-
-        idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
-        files = {}
-        for k, f in idx.items():
-            if k.startswith("language_model."):
-                files.setdefault(f, []).append(k)
-        if os.environ.get("CIE_LAZY_LOAD") == "1":  # opt-in: read each tensor from disk when consumed (GPU < 49 GiB with fp8)
-            class _LazyW(dict):
-                def pop(self, k, *d):
-                    f = super().pop(k)
-                    with safe_open(str(self_dir / f), framework="pt", device=device) as sf:
-                        return sf.get_tensor("language_model." + k)
-            self_dir = self.dir
-            W = _LazyW()
-            for f, keys in files.items():
-                for k in keys:
-                    W[k[len("language_model."):]] = f
-        else:
-            W = {}
-            for f, keys in files.items():
-                with safe_open(str(self.dir / f), framework="pt", device=device) as sf:
-                    for k in keys:
-                        W[k[len("language_model."):]] = sf.get_tensor(k)
-        with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
-            self.readout = sf.get_tensor("weight").to(self.dtype)
-        self.embed = W.pop("embed_tokens.weight")
-        self.norm_w = W.pop("norm.weight")
+        W = self._read_weights(device)
 
         # nvfp4 group specs: "gu" (all layers) or "gu@4-59" / "gu@4-30+40-59" (inclusive layer ranges); legacy ".gu" ok
         specs = []
@@ -514,6 +487,43 @@ class PplxEngine:
         self.inter = cfg["intermediate_size"]
         self._pick_attn()
 
+    def _read_weights(self, device):
+        """Raw text-model weights keyed like the HF module without its prefix ("layers.0...", "embed_tokens.weight",
+        "norm.weight"); sets self.temperature, self.readout and pops embed/norm into self.embed / self.norm_w."""
+        from safetensors import safe_open
+        dc = json.loads((self.dir / "decision_config.json").read_text())
+        self.temperature = float(dc["temperature"])
+        assert dc.get("attention_mode") == "noncausal_full_attention" and dc.get("pooling", "last") == "last"
+
+        idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
+        files = {}
+        for k, f in idx.items():
+            if k.startswith("language_model."):
+                files.setdefault(f, []).append(k)
+        if os.environ.get("CIE_LAZY_LOAD") == "1":  # opt-in: read each tensor from disk when consumed (GPU < 49 GiB with fp8)
+            class _LazyW(dict):
+                def pop(self, k, *d):
+                    f = super().pop(k)
+                    with safe_open(str(self_dir / f), framework="pt", device=device) as sf:
+                        return sf.get_tensor("language_model." + k)
+            self_dir = self.dir
+            W = _LazyW()
+            for f, keys in files.items():
+                for k in keys:
+                    W[k[len("language_model."):]] = f
+        else:
+            W = {}
+            for f, keys in files.items():
+                with safe_open(str(self.dir / f), framework="pt", device=device) as sf:
+                    for k in keys:
+                        W[k[len("language_model."):]] = sf.get_tensor(k)
+        with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
+            self.readout = sf.get_tensor("weight").to(self.dtype)
+        self.embed = W.pop("embed_tokens.weight")
+        self.norm_w = W.pop("norm.weight")
+
+        return W
+
     def _chk(self, name, a, b):
         n = (a.view(torch.uint8) != b.view(torch.uint8)).sum().item()
         self._chk_stats[name] = self._chk_stats.get(name, 0) + n
@@ -541,11 +551,12 @@ class PplxEngine:
         if self.attn_impl in ("sdpa", "sdpa_mask"):
             self._varlen = None
 
-    def _attend(self, q, k, v, cu_q, cu_k, max_q, max_k, lens_q, lens_k):
-        """q [Tq, H, D], k/v [Tk, KV, D] -> [Tq, H, D], noncausal within each sequence."""
+    def _attend(self, q, k, v, cu_q, cu_k, max_q, max_k, lens_q, lens_k, causal=False):
+        """q [Tq, H, D], k/v [Tk, KV, D] -> [Tq, H, D], noncausal within each sequence (causal=True: causal, only with
+        cu_q == cu_k)."""
         if self._varlen is not None:
             return self._varlen(q.contiguous(), k.contiguous(), v.contiguous(), cu_q, cu_k, max_q, max_k,
-                                scale=self.hd ** -0.5, window_size=(-1, -1), enable_gqa=True)
+                                scale=self.hd ** -0.5, window_size=(-1, 0) if causal else (-1, -1), enable_gqa=True)
         outs = []
         for (a, b), (c, d) in zip(zip(lens_q[:-1], lens_q[1:]), zip(lens_k[:-1], lens_k[1:])):
             qi = q[a:b].transpose(0, 1)[None]
@@ -557,7 +568,7 @@ class PplxEngine:
                 ki, vi = ki.repeat_interleave(r, dim=1), vi.repeat_interleave(r, dim=1)
                 o = F.scaled_dot_product_attention(qi, ki, vi, attn_mask=m, scale=self.hd ** -0.5)
             else:
-                o = F.scaled_dot_product_attention(qi, ki, vi, is_causal=False, enable_gqa=True, scale=self.hd ** -0.5)
+                o = F.scaled_dot_product_attention(qi, ki, vi, is_causal=causal, enable_gqa=True, scale=self.hd ** -0.5)
             outs.append(o[0].transpose(0, 1))
         return torch.cat(outs, 0)
 
@@ -640,7 +651,7 @@ class PplxEngine:
         v = v.view(T, self.nkv, self.hd)
         if last_idx is None:
             q = K.norm_rope(q, L["q_norm"], cos[:, None], sin[:, None], self.eps, self.rot)
-            o = self._attend(q, k, v, cu, cu, max_len, max_len, lens, lens)
+            o = self._attend(q, k, v, cu, cu, max_len, max_len, lens, lens, causal=self.causal)
         else:
             q = K.norm_rope(q, L["q_norm"], cos[last_idx][:, None], sin[last_idx][:, None], self.eps, self.rot)
             n = last_idx.shape[0]

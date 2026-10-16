@@ -13,3 +13,11 @@ fused kernels, continuous-batching HTTP server).
 Runtime dependencies (not bundled): PyTorch (BSD-3-Clause), flash-linear-attention (MIT), Triton (MIT),
 Hugging Face transformers / safetensors / huggingface_hub (Apache-2.0).
 No affiliation with or endorsement by Perplexity AI or Alibaba Cloud is implied.
+
+Plumb-4B (s1-fast): engine/plumb_engine.py serves crh225/plumb-4b (Apache License 2.0; Qwen3.5-4B base, Apache License 2.0;
+author's JevK5 runtime and calibration by alibiserikbay, Apache License 2.0). The decision prompt and readout in
+engine/plumb_engine.py (payload layout, system instruction, option lettering, calibration temperature use) are adapted from
+the author's jevk5/runtime.py (https://github.com/allebee/jevk5, Apache License 2.0), which follows SemIf (MIT).
+Modifications: the chat template is rendered as a plain string and tokenised with the Rust tokenizer (token ids verified
+identical), and the forward pass is the packed varlen engine of engine/pplx_engine.py.
+Model weights are NOT included in any image or source tree.
