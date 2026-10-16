@@ -39,10 +39,10 @@ docker run --rm --gpus device=0 --network none --read-only --tmpfs /tmp:rw,exec,
 **`fast`** (`PLUMB_MODE=fast`) packs all queued decisions into one varlen batch (fused projections, fla conv, flash
 varlen attention, last-layer pruning, `torch.compile` fusions, CUDA graphs for small batches). It is 2x-3x faster than
 `exact`, but it is not bit-identical: Plumb's letter logits are bf16 (steps of 0.0625-0.125 at |logit| 8-32, T = 2.07),
-so any change in GEMM shapes moves some option by one step: mean logit distance 0.05-0.07 and 98-99.5 % top-choice
-agreement against the reference, and results that depend on the co-batched requests. That fails the competition's
-determinism gate (0.05) and is on the edge of the agreement gate (99 %). Use it only where answers need not
-reproduce the reference.
+so any change in GEMM shapes moves some option by one step. Against the reference: mean logit distance 0.06-0.07 on
+generated items and 0.09-0.11 on the public sets (P300 / 231 items), 98-99.6 % top-choice agreement, single items up to
+0.9 (gates: 0.10 / 1.0 / 99 %); the same item answered alone and inside a batch of 16 differs by 0.09-0.10 on average,
+up to 0.56 (determinism gate 0.05). Use it only where answers need not reproduce the reference.
 
 
 ## Measurements (one RTX PRO 6000 Blackwell, 16 Oct 2026; competition harness `reax-engine-eval`, track s1-fast)
