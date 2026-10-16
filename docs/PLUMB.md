@@ -44,4 +44,25 @@ agreement against the reference, and results that depend on the co-batched reque
 determinism gate (0.05) and is on the edge of the agreement gate (99 %). Use it only where answers need not
 reproduce the reference.
 
-See `RESULTS-PLUMB.md` for the measurements.
+
+## Measurements (one RTX PRO 6000 Blackwell, 16 Oct 2026; competition harness `reax-engine-eval`, track s1-fast)
+
+Reference = the runtime built from `reax-subnet` runtimes/s1-fast (jevk5, batch-1 CUDA graphs behind a lock).
+
+| | reference runtime | engine, `exact` (default) | engine, `fast` |
+|---|---|---|---|
+| decisions/s, generated s1 items, concurrency 1 | 67.4 (p50 14.8 ms) | 66.0 (p50 14.9 ms) | 100 (p50 9.8 ms) |
+| concurrency 16 | 68.0 | 102.4 | 180-199 |
+| concurrency 64 | 67.1 | 104.0 | 214-218 |
+| P300 public set (long items), c1 / c16 | 34.8 / 35.1 | 34.1 / 41.7 | 48.7 / 66.5 |
+| evaluator score vs reference (2 runs each) | - | 1.43-1.47, all gates passed, distance 0.0 | not valid: top agreement 98.0-98.6 %, one item distance 1.03 |
+| GPU memory | 12.1 GiB | 15.2 GiB | ~15 GiB |
+| start until `/health` 200 (read-only container, weights verified) | 36 s | 48 s | 104 s |
+
+`exact` answers equal the reference's for every item tried: 600 + 1000 generated items, the 231-item public set and the
+300-item P300 set (3 of them exceed 4096 tokens: HTTP 400 in both), at concurrency 1 and 16 (mean/max logit distance
+0.0, top agreement 100 %); P300 accuracy 0.7306 for both. In reverse (reference = this engine, candidate = the reference
+runtime) the evaluator also reports distance 0.0 and passes (score 0.67-0.70).
+
+Why the large gap between the modes: see above. FP8 W8A8 (per-channel weights, per-token activations, all linears)
+agrees on only 91-92 % of the items (mean distance 0.28, max 1.4) and was not pursued.
