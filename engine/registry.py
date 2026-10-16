@@ -7,6 +7,7 @@ status
   native           REAX kernels (packed varlen prefill, fused/quantised GEMMs) in this repo
   vllm-backed      decision readout through a vLLM server (prefill + 1 token); see engine/backends/vllm_readout.py
   cpu              llama.cpp / ONNX on CPU
+  classifier       model kind `classifier_heads`: encoder + N fixed heads on onnxruntime (engine/backends/onnx_heads.py)
   documented-only  described in docs/, no backend
 """
 from __future__ import annotations
@@ -16,7 +17,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Callable
 
-STATUSES = ("native", "vllm-backed", "cpu", "documented-only")
+STATUSES = ("native", "vllm-backed", "cpu", "classifier", "documented-only")
+MODEL_KINDS = ("decision", "classifier_heads")
 BACKEND_KINDS = ("native-gpu", "vllm", "gguf-cpu", "onnx-cpu", "none")
 
 
@@ -38,10 +40,12 @@ class ModelSpec:
     gated: bool = False                 # HF gate: each operator accepts the licence with their own account
     weights_gb: float = 0.0             # download size (0 = not applicable)
     notes: str = ""
+    model_kind: str = "decision"        # "decision" (readout over answer options) | "classifier_heads" (encoder + fixed heads)
 
     def __post_init__(self):
         assert self.status in STATUSES, self.status
         assert self.backend_kind in BACKEND_KINDS, self.backend_kind
+        assert self.model_kind in MODEL_KINDS, self.model_kind
 
     def record(self) -> dict:
         d = asdict(self)
@@ -54,6 +58,14 @@ class ModelSpec:
 def _plumb(model_dir, **opts):
     from engine import plumb_engine  # module comes from the plumb slice: expected hook load(model_dir, **opts) -> Backend
     return plumb_engine.load(model_dir, **opts)
+
+
+def _onnx_heads(model_id):
+    def make(model_dir, **opts):
+        from engine.backends import onnx_heads
+        assert model_id == onnx_heads.S1_LLM_AUTO_ROUTER.model_id
+        return onnx_heads.OnnxHeadsBackend(model_dir, spec=onnx_heads.S1_LLM_AUTO_ROUTER, **opts)
+    return make
 
 
 def _pplx(model_dir, **opts):
@@ -166,10 +178,10 @@ _SPECS = (
         hf_repo="decisionmodels/s1-llm-auto-router", revision="572c5b6cdb53b77fbb26ed33568ebbc5b71c69c0",
         licence="MIT", licence_notice="MIT; base jhu-clsp/mmBERT-small.",
         params="~0.1B (ONNX, int8 embeddings, 183 MB)", arch="mmBERT-small student encoder (11 layers) with 7 fixed classification heads",
-        readout="NOT a letter-logit readout: fixed heads (category 9-way, difficulty 5, stakes 4, 4 binary flags), per-head temperatures; no prompt, fixed questions only",
-        backend_kind="none", status="documented-only", factory=None, weights_gb=0.2,
-        hardware="CPU (onnxruntime), p50 13.9 ms on 4 pinned cores",
-        notes="Does not fit the arbitrary-question decision contract; a separate fixed-head classifier. Update this entry if the cpu slice ships engine/backends/onnx_router.py."),
+        readout="NOT a letter-logit readout: encoder + 7 fixed heads (category 9-way, difficulty 5, stakes 4, 4 binary flags), softmax / sigmoid with per-head temperatures from meta.json; no prompt, fixed questions only",
+        backend_kind="onnx-cpu", status="classifier", model_kind="classifier_heads", factory=_onnx_heads("s1-llm-auto-router"),
+        weights_gb=0.2, hardware="CPU (onnxruntime), p50 13.9 ms on 4 pinned cores (model card); see docs/models/s1-llm-auto-router.md",
+        notes="classifier_heads kind: served at POST /v1/classify (and the production-compatible /internal/v1/decide, /v1/systemone) by engine/serve.py; execution is identical to the reference path"),
 )
 
 REGISTRY: dict[str, ModelSpec] = {s.id: s for s in _SPECS}

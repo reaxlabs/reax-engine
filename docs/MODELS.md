@@ -13,7 +13,7 @@ harness (`bench/`). Every number below says where and when it was measured; "not
 | `rune-26b-a4b` (s1-pro) | **vLLM-backed** | `engine/backends/vllm_readout.py` | `surogate/rune-26b-a4b-GGUF` (HF-gated) | Gemma-4 26B-A4B MoE |
 | `blink-v0.3-26b-a4b` (s1-fast-2) | **vLLM-backed** | `engine/backends/vllm_readout.py` | `PixilabAI/Blink-v0.3-26B-A4B-NVFP4` | Gemma-4 26B-A4B MoE, NVFP4 (Blackwell), Rune prompt |
 | `gutsy-0.8b`, `plumb-4b-q8` | cpu | `engine/backends/gguf_cpu.py` | GGUF Q8_0 | llama.cpp |
-| `s1-llm-auto-router` | documented-only | - | `decisionmodels/s1-llm-auto-router` | fixed-head encoder, not a letter readout |
+| `s1-llm-auto-router` | classifier (`classifier_heads`) | `engine/backends/onnx_heads.py` | `decisionmodels/s1-llm-auto-router` | encoder + 7 fixed heads, onnxruntime CPU, `POST /v1/classify`; see `docs/models/s1-llm-auto-router.md` |
 
 **What "vLLM-backed" means.** Quyet, Rune and Blink are served by vLLM inside the REAX Engine: vLLM prefills the prompt and returns the
 logprobs of the option-letter tokens for one generated token (`max_tokens=1`, `allowed_token_ids` = the option letters); the

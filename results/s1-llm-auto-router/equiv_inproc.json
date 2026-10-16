@@ -1,0 +1,1 @@
+{"check": "inproc backend vs reference", "n": 620, "argmax_identical": 620, "argmax_mismatches": 0, "max_abs_prob_diff": 0.0, "bit_identical": 620, "token_count_mismatches": 0, "rejected_by_both": 50}

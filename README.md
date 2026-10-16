@@ -22,6 +22,15 @@ One registry, backend API and evaluation harness for several decision models: pp
 (vLLM-backed readout, not native kernels), Plumb-4B (native) and the CPU GGUF models. See `docs/MODELS.md`, `python -m engine.registry`,
 `bench/README.md`.
 
+## Model types
+- **Readout decision models** (everything above): the question is part of the prompt, the answer is a softmax over the answer-option
+  logits at the last prompt position. The engine's speed-ups (packed batches, FP8, fused kernels, vLLM or llama.cpp execution)
+  apply to these.
+- **Classifier-heads models** (`model_kind="classifier_heads"`, first: `s1-llm-auto-router`): an encoder with N fixed heads that
+  answers a fixed set of questions about a request text in one pass, run with onnxruntime on CPU (`engine/backends/onnx_heads.py`,
+  `POST /v1/classify`). This is an equivalent execution mode of the model's own path (bit-identical outputs, same latency), not a
+  faster one: the engine contributes the registry, server contract and evaluation harness. See `docs/models/s1-llm-auto-router.md`.
+
 ## Quick start
 ```bash
 MODEL_DIR=./model bash tools/setup.sh
