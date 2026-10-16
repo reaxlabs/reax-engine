@@ -135,6 +135,10 @@ phase() {  # label(ref|cand) port -> agreement responses/report + load levels un
   fi
   local LM=model; [ "$label" = ref ] && LM=$REF_MODEL
   python3 -m bench.loadgen --url "$url" --model "$LM" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "1,$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-p300.json"
+  if [ "$DI_LIMIT" -gt 0 ] && [ "$CONTRACT" = s1 ]; then
+    # s1 sidecar contract: one question per call, so DI questions of a state arrive as separate calls (production shape); 1000 states, under one pass per level
+    python3 -m bench.loadgen --url "$url" --model "$LM" --contract s1 --set di --limit 1000 --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "1,$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-di.json"
+  fi
   if [ "$DI_LIMIT" -gt 0 ] && [ "$CONTRACT" = systemone ]; then
     python3 -m bench.loadgen --url "$url" --model "$LM" --contract systemone --set di --limit 200 --grouped --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-di.json"
   fi
