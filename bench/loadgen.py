@@ -77,7 +77,8 @@ def run_level(url, path, headers, bodies, conc, seconds):
     res = {"concurrency": conc, "wall_s": round(wall, 1), "requests": len(lat), "decisions": decisions[0],
            "decisions_per_s": round(decisions[0] / wall, 2), "requests_per_s": round(len(lat) / wall, 2), "http_codes": codes}
     if allv:
-        res.update(req_p50_ms=round(1000 * statistics.median(allv), 1), req_p95_ms=round(1000 * stats.quantile(allv, 0.95), 1))
+        res.update(req_p50_ms=round(1000 * statistics.median(allv), 1), req_p95_ms=round(1000 * stats.quantile(allv, 0.95), 1),
+                   req_max_ms=round(1000 * allv[-1], 1))
     if one:
         res.update(single_q_p50_ms=round(1000 * statistics.median(one), 1), single_q_p95_ms=round(1000 * stats.quantile(one, 0.95), 1))
     return res
@@ -95,9 +96,14 @@ def main(argv=None):
     ap.add_argument("--concurrency", default="1,16")
     ap.add_argument("--seconds", type=float, default=60)
     ap.add_argument("--grouped", action="store_true")
+    ap.add_argument("--max-chars", type=int, default=0,
+                    help="drop items whose state is longer than this many JSON characters (0 = keep all); models without an input cap "
+                         "(d3) otherwise spend the run on a handful of 100k-character P300 items")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
     items = sets.load(a.set_name, a.data_dir, a.limit, a.data_file)
+    if a.max_chars:
+        items = [it for it in items if len(json.dumps(it.state)) <= a.max_chars]
     if a.contract == "s1" and a.grouped:
         raise SystemExit("--grouped needs --contract systemone (the s1 sidecar contract takes one question per call)")
     bodies = build_requests(items, a.grouped, a.model)
@@ -112,7 +118,7 @@ def main(argv=None):
         results.append(r)
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.out).write_text(json.dumps({"set": a.set_name, "contract": a.contract, "grouped": a.grouped, "n_requests": len(bodies),
+        Path(a.out).write_text(json.dumps({"set": a.set_name, "contract": a.contract, "grouped": a.grouped, "max_chars": a.max_chars, "n_requests": len(bodies),
                                            "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "levels": results}, indent=1) + "\n")
     return 0
 

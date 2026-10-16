@@ -13,6 +13,7 @@
 #   5. writes results/<model>/<date>.json (bench/summarize.py)
 # Environment: WORK (default /workspace/reax-validate)  PRESET (vLLM-backed models; default: faithful preset)  CONC (16)
 #   LOAD_SECONDS (60)  DI_LIMIT (1000; 0 = skip DI)  VERIFY (1: check MANIFEST.sha256 when the repo ships one)
+#   LOAD_MAX_CHARS (0: drop load-test items whose state is longer than this many characters)  SKIP_AGREEMENT (1: load test only; set AGREEMENT_RAW to the raw dir of an earlier run)  TAG (suffix of the results file)
 #   GPU (docker --gpus value: "all" or a device index; default all)  PORT_OFF (added to the server ports, so two models can run on two GPUs at once)
 #   MIN_FREE_GB (default weights*1.15+60)  REAX_OPTS (backend options key=value, space separated)  REF_IMAGE / REAX_SUBNET_DIR (Rune reference)  RO (1: --read-only)
 # Stops nothing on the pod and rents nothing; the lead tears the pod down.
@@ -114,7 +115,8 @@ phase() {  # label(ref|cand) port -> agreement responses/report + load levels un
   local SAMPLER=$!
   local url=http://127.0.0.1:$port
   local C=$WORK/cache/$ID/$REV; mkdir -p "$C"
-  if [ "$label" = ref ]; then
+  if [ "${SKIP_AGREEMENT:-0}" = 1 ]; then :
+  elif [ "$label" = ref ]; then
     python3 -m bench.agreement --ref "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --fetch-only --workers 8 --ref-cache "$C/ref-p300.jsonl"
     if [ "$DI_LIMIT" -gt 0 ]; then
       python3 -m bench.agreement --ref "$url" --contract "$CONTRACT" --set di --limit "$DI_LIMIT" --data-dir "$DATA" --fetch-only --workers 8 --ref-cache "$C/ref-di.jsonl"
@@ -125,9 +127,9 @@ phase() {  # label(ref|cand) port -> agreement responses/report + load levels un
       python3 -m bench.agreement --ref "$C/ref-di.jsonl" --cand "$url" --contract "$CONTRACT" --set di --limit "$DI_LIMIT" --data-dir "$DATA" --workers 8 --out "$RAW/agreement-di.json" >/dev/null
     fi
   fi
-  python3 -m bench.loadgen --url "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --concurrency "1,$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-p300.json"
+  python3 -m bench.loadgen --url "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "1,$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-p300.json"
   if [ "$DI_LIMIT" -gt 0 ] && [ "$CONTRACT" = systemone ]; then
-    python3 -m bench.loadgen --url "$url" --contract systemone --set di --limit 200 --grouped --concurrency "$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-di.json"
+    python3 -m bench.loadgen --url "$url" --contract systemone --set di --limit 200 --grouped --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-di.json"
   fi
   kill "$SAMPLER" 2>/dev/null || true; wait "$SAMPLER" 2>/dev/null || true
   sort -n "$RAW/mem-$label.csv" | tail -1 > "$RAW/peak-mem-$label.txt"
@@ -164,7 +166,7 @@ PEAK_REF=$(tr -dc 0-9 < "$RAW/peak-mem-ref.txt"); PEAK_CAND=$(tr -dc 0-9 < "$RAW
 } > "$RAW/env.json"
 echo "$SPEC" > "$RAW/spec.json"
 OUT=$ROOT/results/$ID/$TODAY${PRESET:+-$PRESET}${TAG:+-$TAG}.json
-python3 -m bench.summarize --model "$ID" --spec "$RAW/spec.json" --env "$RAW/env.json" --agreement "$RAW/agreement-p300.json" \
-  --agreement-di "$RAW/agreement-di.json" --ref-load "$RAW/load-ref-p300.json" --cand-load "$RAW/load-cand-p300.json" \
+python3 -m bench.summarize --model "$ID" --spec "$RAW/spec.json" --env "$RAW/env.json" --agreement "${AGREEMENT_RAW:-$RAW}/agreement-p300.json" \
+  --agreement-di "${AGREEMENT_RAW:-$RAW}/agreement-di.json" --ref-load "$RAW/load-ref-p300.json" --cand-load "$RAW/load-cand-p300.json" \
   --ref-load-di "$RAW/load-ref-di.json" --cand-load-di "$RAW/load-cand-di.json" --out "$OUT"
 log "wrote $OUT"
