@@ -1,6 +1,6 @@
 #!/bin/bash
 # vLLM on loopback (flags from the named preset, engine/backends/vllm_readout.py) + the REAX server in front.
-#   REAX_MODEL        registry id (quyet-1.0-large | rune-26b-a4b)           required
+#   REAX_MODEL        registry id (quyet-1.0-large | rune-26b-a4b | blink-v0.3-26b-a4b)           required
 #   REAX_PRESET       serving preset (see docs/MODELS.md); default per model
 #   REAX_MODEL_DIR    weights directory (default /model, mount read-only)
 #   REAX_VERIFY=1     check Quyet's MANIFEST.sha256 before starting (a few minutes)
@@ -12,6 +12,7 @@ DIR=${REAX_MODEL_DIR:-/model}
 case "$MODEL" in
   quyet|quyet-1.0-large) FAMILY=quyet; MODEL=quyet-1.0-large ;;
   rune|s1-pro|rune-26b-a4b) FAMILY=rune; MODEL=rune-26b-a4b ;;
+  blink|s1-fast-2|blink-v0.3-26b-a4b) FAMILY=blink; MODEL=blink-v0.3-26b-a4b ;;
   *) echo "reax: $MODEL is not a vLLM-backed model"; exit 2 ;;
 esac
 [ -f "$DIR/config.json" ] || { echo "reax: no weights at $DIR (mount them read-only there)"; exit 2; }

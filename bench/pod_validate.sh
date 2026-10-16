@@ -3,7 +3,7 @@
 #
 #   HF_TOKEN=hf_... REAX_BENCH_DATA=/path/to/eval-data bash bench/pod_validate.sh <model-id>
 #
-# model-id: pplx-decider-v1.1-27b | d3 | quyet-1.0-large | rune-26b-a4b   (aliases work; see `python3 -m engine.registry`)
+# model-id: pplx-decider-v1.1-27b | d3 | quyet-1.0-large | rune-26b-a4b | blink-v0.3-26b-a4b   (aliases work; see `python3 -m engine.registry`)
 # What it does, in order (one model on the GPU at a time):
 #   1. downloads the pinned weights (registry revision; HF_TOKEN required for the gated Rune repo)
 #   2. builds the images (docker/qwen35 or docker/vllm-readout; the Rune reference image comes from reax-subnet)
@@ -66,6 +66,11 @@ case "$ID" in
     ENGINE_IMAGE=reax-vllm-readout; DOCKERFILE=docker/vllm-readout/Dockerfile; CONTRACT=s1
     REAX_CMD=(); REF_IMAGE=${REF_IMAGE:-reax-s1-pro-runtime}; REF_ENTRY=""   # the image's own entrypoint (vLLM + Rune adapter)
     REF_CMD=(); REF_ENV=(-e RUNE_PORT=$PORT_REF -e RUNE_SKIP_VERIFY=1); REF_MODEL=rune ;;   # the reference adapter 404s any other model name
+  blink-v0.3-26b-a4b)
+    # no author server exists: the reference arm is the model card's plain vLLM recipe (preset stock, not batch-invariant) behind the same REAX encoder
+    ENGINE_IMAGE=reax-vllm-readout; DOCKERFILE=docker/vllm-readout/Dockerfile; CONTRACT=s1
+    REAX_CMD=(); REF_IMAGE=${REF_IMAGE:-reax-vllm-readout}; REF_ENTRY=""; REF_CMD=()
+    REF_ENV=(-e REAX_VLLM_PORT=$((8000+PORT_OFF)) -e REAX_MODEL="$ID" -e REAX_HOST=127.0.0.1 -e REAX_PORT=$PORT_REF -e REAX_PRESET=stock) ;;
   *) echo "no pod wiring for $ID"; exit 2 ;;
 esac
 export S1M_INTERNAL_TOKEN=$TOKEN

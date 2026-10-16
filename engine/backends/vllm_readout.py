@@ -482,6 +482,10 @@ _B_BASE = ("--dtype", "auto", "--max-model-len", "32768", "--logprobs-mode", "pr
            "--chat-template-content-format", "string", *_mm('{"image":0,"audio":0,"video":0}'))
 _MEAS_B = "measured 11 Oct 2026 (Lium RTX PRO 6000 Blackwell 96 GB, vLLM 0.30.0 pinned image), recipe ported; "
 BLINK_PRESETS = {p.name: p for p in (
+    Preset("stock", "the model card's plain vLLM recipe (NVFP4, FP8 KV, prefix caching, 64 seqs), NOT batch-invariant; the reference arm of the studies",
+           _B_BASE + ("--max-num-seqs", "64", "--gpu-memory-utilization", "0.9"),
+           measured=_MEAS_B + "stock arm of the 11 Oct study (see the same-host ratios in docs/MODELS.md)",
+           gates="reference arm"),
     Preset("bi1", "batch-invariant kernels (VLLM_BATCH_INVARIANT=1), NVFP4 weights, FP8 KV, prefix caching, 256 seqs, 16384-token batches",
            _B_BASE + ("--max-num-seqs", "256", "--max-num-batched-tokens", "16384", "--gpu-memory-utilization", "0.9"),
            env={"VLLM_BATCH_INVARIANT": "1"},
