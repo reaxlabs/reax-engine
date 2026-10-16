@@ -5,6 +5,9 @@ Routes
   POST /internal/v1/decide   the s1 runtime sidecar contract: header X-S1M-Internal-Token, one question per call,
                              {"model","answers":{qid:{type,probabilities,confidence,choice|noul|score}},"usage"}
   POST /v1/systemone         the same with any number of questions per call
+  POST /v1/classify          classifier_heads models (s1-llm-auto-router): {"model","request","context"} ->
+                             {"model","heads":{name:{"label","probabilities"}},"usage"}; the two routes above then
+                             answer the model's fixed questions in the production shape (see backends/onnx_heads.py)
   GET  /health               200 only after warm-up (503 before)
 Listens on $RUNTIME_UDS (unix socket, mode 0666) if set, else RUNTIME_HOST:RUNTIME_PORT (127.0.0.1:8101).
 Token: S1M_INTERNAL_TOKEN or the file S1M_INTERNAL_TOKEN_FILE; RUNTIME_ALLOW_NO_AUTH=1 serves without one.
@@ -16,6 +19,7 @@ on a queue; ONE scheduler thread (the only one that touches the GPU) takes every
 hands the probabilities back to the event loop in one callback per step.
 
     python engine/serve.py --model plumb-4b            # weights at $PLUMB_MODEL_DIR (default /model)
+    python engine/serve.py --model s1-llm-auto-router --model-dir weights/router   # CPU, onnxruntime
 """
 from __future__ import annotations
 
@@ -124,7 +128,9 @@ class App:
         self.be, self.sched, self.token, self.model = backend, sched, token.encode(), model_name
         self.ready = False
         self.loop_hdr = b"x-s1m-internal-token"
+        self.aliases = ()
         self._shape = getattr(backend, "answer", None)
+        self.classifier = getattr(backend, "model_type", "") == "classifier_heads"
 
     # -------- one decision (all questions of a request are batched together)
     async def decide(self, state, questions: dict, long_body: bool = False):
@@ -143,6 +149,30 @@ class App:
             answers[qid] = self._shape(q, probs[qid]) if self._shape else sidecar_answer(q, keys, probs[qid])
         return answers, sum(e.n_tokens for e in encs.values())
 
+    # -------- classifier_heads models: one encoder pass answers every head
+    async def _probs(self, state, long_body: bool = False):
+        loop = asyncio.get_running_loop()
+        enc = await loop.run_in_executor(None, self.be.encode, state) if long_body else self.be.encode(state)
+        fut = loop.create_future()
+        self.sched.submit(enc, loop, fut)
+        return await fut, enc.n_tokens
+
+    async def classify(self, body: dict, long_body: bool = False):
+        want = body.get("model")
+        if want is not None and want != self.be.name and want not in self.aliases:
+            raise ValueError(f"model must be {self.be.name}")
+        if "request" not in body:
+            raise ValueError("request is required")
+        probs, n = await self._probs({"request": body["request"], "context": body.get("context")}, long_body)
+        return {"model": self.be.name, "heads": self.be.heads_answer(probs),
+                "usage": {"input_tokens": n, "output_tokens": 0}}
+
+    async def decide_fixed(self, state, questions: dict, long_body: bool = False):
+        """Production-compatible shape: the fixed questions of a classifier_heads model, answers from one pass."""
+        self.be.check_questions(questions)
+        probs, n = await self._probs(state, long_body)
+        return self.be.sidecar_answers(questions, probs), n
+
     async def __call__(self, scope, receive, send):
         if scope["type"] == "lifespan":
             while True:
@@ -160,7 +190,8 @@ class App:
                 return await self._json(send, 503, {"ok": False, "status": "warming up"})
             return await self._json(send, 200, {"ok": True, "model": self.model, "steps": self.sched.steps,
                                                 "decisions": self.sched.decisions})
-        if method != "POST" or path not in ("/internal/v1/decide", "/v1/systemone"):
+        routes = ("/internal/v1/decide", "/v1/systemone") + (("/v1/classify",) if self.classifier else ())
+        if method != "POST" or path not in routes:
             return await self._json(send, 404, {"error": {"message": "not found"}})
         if self.token:
             got = b""
@@ -178,6 +209,17 @@ class App:
             chunks.append(msg.get("body", b""))
             if not msg.get("more_body"):
                 break
+        if path == "/v1/classify":
+            try:
+                body = json.loads(b"".join(chunks))
+                if not isinstance(body, dict):
+                    raise ValueError("body must be an object")
+                out = await self.classify(body, sum(map(len, chunks)) > LONG_TEXT)
+            except ValueError as exc:  # also json.JSONDecodeError and the backend's input errors
+                return await self._json(send, 400, {"error": {"message": f"bad request: {str(exc)[:200]}"}})
+            except Exception as exc:  # noqa: BLE001
+                return await self._json(send, 500, {"error": {"message": f"{type(exc).__name__}"}})
+            return await self._json(send, 200, out)
         try:
             body = json.loads(b"".join(chunks))
             questions = body["questions"]
@@ -193,7 +235,8 @@ class App:
         except Exception as exc:  # noqa: BLE001
             return await self._json(send, 400, {"error": {"message": f"bad request: {type(exc).__name__}"}})
         try:
-            answers, n = await self.decide(state, questions, sum(map(len, chunks)) > LONG_TEXT)
+            run = self.decide_fixed if self.classifier else self.decide
+            answers, n = await run(state, questions, sum(map(len, chunks)) > LONG_TEXT)
         except ValueError as exc:
             return await self._json(send, 400, {"error": {"message": str(exc)}})
         except Exception as exc:  # noqa: BLE001
@@ -242,7 +285,10 @@ def load_backend(name: str, a):
         if a.batch_tokens:
             kw["max_batch_tokens"] = a.batch_tokens
         return PlumbBackend(a.model_dir, compile=a.compile, **kw)
-    raise SystemExit(f"unknown model {name!r} (known: plumb-4b)")
+    if name in ("s1-llm-auto-router", "llm-auto-router"):
+        from backends.onnx_heads import OnnxHeadsBackend
+        return OnnxHeadsBackend(a.model_dir)
+    raise SystemExit(f"unknown model {name!r} (known: plumb-4b, s1-llm-auto-router)")
 
 
 def main(argv=None):
@@ -261,7 +307,8 @@ def main(argv=None):
         verify_weights(a.model_dir, a.manifest)
     backend = load_backend(a.model, a)
     sched = Scheduler(backend, a.max_wait_ms)
-    app = App(backend, sched, token, "s1-fast" if a.model == "plumb-4b" else a.model)
+    app = App(backend, sched, token, "s1-fast" if a.model == "plumb-4b" else getattr(backend, "name", a.model))
+    app.aliases = ("llm-auto-router",) if getattr(backend, "model_type", "") == "classifier_heads" else ()
 
     def warm():
         t0 = time.time()

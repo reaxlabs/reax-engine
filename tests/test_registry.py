@@ -24,7 +24,8 @@ def test_status_by_model():
     assert st["pplx-decider-v1.1-27b"] == st["d3"] == st["plumb-4b"] == "native"
     assert st["quyet-1.0-large"] == st["rune-26b-a4b"] == "vllm-backed"
     assert st["gutsy-0.8b"] == st["plumb-4b-q8"] == "cpu"
-    assert st["s1-llm-auto-router"] == "documented-only"
+    assert st["s1-llm-auto-router"] == "classifier"
+    assert registry.get("s1-llm-auto-router").model_kind == "classifier_heads"
 
 
 def test_aliases_and_errors():
@@ -33,7 +34,7 @@ def test_aliases_and_errors():
     assert registry.get("quyet").id == "quyet-1.0-large"
     with pytest.raises(KeyError):
         registry.get("nope")
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(FileNotFoundError):          # the classifier_heads factory loads (and verifies) the weights
         registry.build("s1-llm-auto-router", "/nowhere")
     ids = [a for s in registry.REGISTRY.values() for a in (s.id, *s.aliases)]
     assert len(ids) == len(set(ids)), "ids and aliases must be unique"

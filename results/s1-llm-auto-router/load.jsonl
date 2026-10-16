@@ -1,0 +1,12 @@
+{"concurrency": 1, "n": 551, "p50_ms": 48.11, "p95_ms": 216.62, "throughput_rps": 14.0, "label": "reference"}
+{"concurrency": 4, "n": 484, "p50_ms": 296.73, "p95_ms": 746.05, "throughput_rps": 12.1, "label": "reference"}
+{"concurrency": 1, "n": 556, "p50_ms": 51.81, "p95_ms": 195.8, "throughput_rps": 14.1, "label": "reax"}
+{"concurrency": 4, "n": 573, "p50_ms": 264.76, "p95_ms": 544.1, "throughput_rps": 14.3, "label": "reax"}
+{"concurrency": 1, "n": 542, "p50_ms": 51.43, "p95_ms": 212.67, "throughput_rps": 13.7, "label": "reaxbatch"}
+{"concurrency": 4, "n": 450, "p50_ms": 291.92, "p95_ms": 871.62, "throughput_rps": 10.7, "label": "reaxbatch"}
+{"concurrency": 1, "n": 506, "p50_ms": 55.94, "p95_ms": 225.35, "throughput_rps": 12.9, "label": "reaxbatch"}
+{"concurrency": 4, "n": 462, "p50_ms": 305.91, "p95_ms": 751.18, "throughput_rps": 11.5, "label": "reaxbatch"}
+{"concurrency": 1, "n": 402, "p50_ms": 52.94, "p95_ms": 257.52, "throughput_rps": 10.3, "label": "reax"}
+{"concurrency": 4, "n": 448, "p50_ms": 291.39, "p95_ms": 876.52, "throughput_rps": 11.2, "label": "reax"}
+{"concurrency": 1, "n": 383, "p50_ms": 58.23, "p95_ms": 319.94, "throughput_rps": 9.9, "label": "reference"}
+{"concurrency": 4, "n": 438, "p50_ms": 338.81, "p95_ms": 789.05, "throughput_rps": 11.0, "label": "reference"}

@@ -10,6 +10,7 @@ Stdlib-only Python (runs on the host of the pod; the model servers run in contai
 | `python -m bench.table results/*/*.json` | markdown tables from the results files |
 | `python -m bench.check_blink_prompt MODEL_DIR` | token-for-token check of the Blink/Rune prompt against the model card's client code (container with transformers) |
 | `python -m bench.summarize` | merges the raw outputs of one pod run |
+| `python -m bench.router_equiv inproc\|http\|load ...` | classifier_heads (s1-llm-auto-router): bit-level equivalence against the reference implementation or a running reference server, and a closed-loop latency/throughput run; see `docs/models/s1-llm-auto-router.md` |
 | `bench/ref/quyet_ref_server.py` | `/v1/systemone` shim around the author's `quyet` package (container only) |
 
 Contracts: `systemone` = `POST /v1/systemone` (reference servers, legacy engine), `s1` = `POST /internal/v1/decide` with
