@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+case "$1" in -L) echo "GPU 0: Fake GPU (UUID: x)" ;; *) echo "Fake GPU, 98304 MiB, 580.0" ;; esac

@@ -17,6 +17,11 @@ model's reference server on Decision-Index-style traffic and **2.6x** on the Jev
 - Last-layer pruning (only the readout position needs the final layer's attention/MLP outputs).
 - Continuous-batching HTTP server (`/v1/systemone`), compatible with the reference server's request/answer format.
 
+## Models
+One registry, backend API and evaluation harness for several decision models: pplx-decider and d3 (native), Quyet and Rune
+(vLLM-backed readout, not native kernels), Plumb-4B (native) and the CPU GGUF models. See `docs/MODELS.md`, `python -m engine.registry`,
+`bench/README.md`.
+
 ## Quick start
 ```bash
 MODEL_DIR=./model bash tools/setup.sh

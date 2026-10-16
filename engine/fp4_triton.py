@@ -42,7 +42,7 @@ def _store(code, sbyte, out_ptr, sc_ptr, row, blk0, K, CB, NB: tl.constexpr, NVA
 
 @triton.jit
 def _quant_kernel(x_ptr, g_ptr, out_ptr, sc_ptr, K, CB, NB: tl.constexpr):
-    row, pk = tl.program_id(0), tl.program_id(1)
+    row, pk = tl.program_id(0).to(tl.int64), tl.program_id(1)  # int64: d3 prompts > 64k tokens overflow int32 row offsets
     g = tl.load(g_ptr)
     blk0 = pk * NB
     offs = (blk0 + tl.arange(0, NB))[:, None] * 16 + tl.arange(0, 16)[None, :]
@@ -53,7 +53,7 @@ def _quant_kernel(x_ptr, g_ptr, out_ptr, sc_ptr, K, CB, NB: tl.constexpr):
 
 @triton.jit
 def _silu_mul_quant_kernel(gu_ptr, g_ptr, out_ptr, sc_ptr, I, CB, NB: tl.constexpr):
-    row, pk = tl.program_id(0), tl.program_id(1)
+    row, pk = tl.program_id(0).to(tl.int64), tl.program_id(1)  # int64: d3 prompts > 64k tokens overflow int32 row offsets
     g = tl.load(g_ptr)
     blk0 = pk * NB
     offs = (blk0 + tl.arange(0, NB))[:, None] * 16 + tl.arange(0, 16)[None, :]
@@ -69,7 +69,7 @@ def _silu_mul_quant_kernel(gu_ptr, g_ptr, out_ptr, sc_ptr, I, CB, NB: tl.constex
 def _add_rms_quant_kernel(h_ptr, d_ptr, w_ptr, g_ptr, ho_ptr, x_ptr, out_ptr, sc_ptr, eps, K, CB, N: tl.constexpr,
                           NBLK: tl.constexpr, NB: tl.constexpr, HAS_X: tl.constexpr):
     """h' = h + d (bf16); x = rmsnorm(h') * (1 + w) (bf16, written only if HAS_X); NVFP4 static quant of x. One row per program."""
-    row = tl.program_id(0)
+    row = tl.program_id(0).to(tl.int64)
     g = tl.load(g_ptr)
     blk = tl.arange(0, NB)
     offs = blk[:, None] * 16 + tl.arange(0, 16)[None, :]
@@ -94,7 +94,7 @@ def _add_rms_quant_kernel(h_ptr, d_ptr, w_ptr, g_ptr, ho_ptr, x_ptr, out_ptr, sc
 def _gated_norm_quant_kernel(o_ptr, z_ptr, w_ptr, g_ptr, out_ptr, sc_ptr, z_stride, eps, K, CB, NH: tl.constexpr,
                              NHP: tl.constexpr, HD: tl.constexpr, NB: tl.constexpr):
     """Qwen3_5RMSNormGated (norm(o) -> * w -> * silu(z), bf16 rounds as in the engine) fused with the NVFP4 static quant."""
-    t = tl.program_id(0)
+    t = tl.program_id(0).to(tl.int64)
     g = tl.load(g_ptr)
     h = tl.arange(0, NHP)[:, None]
     dd = tl.arange(0, HD)[None, :]

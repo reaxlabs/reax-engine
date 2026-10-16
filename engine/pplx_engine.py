@@ -313,7 +313,8 @@ try:
 
     @triton.jit
     def _smqs_kernel(gu_ptr, xs_ptr, ws_ptr, q_ptr, s_ptr, INTER: tl.constexpr, BLOCK: tl.constexpr):
-        r = tl.program_id(0)
+        # d3 accepts >64k-token prompts: r * 2 * INTER can exceed int32.
+        r = tl.program_id(0).to(tl.int64)
         o = tl.arange(0, BLOCK)
         m = o < INTER
         xs = tl.load(xs_ptr + r)
@@ -452,8 +453,11 @@ class PplxEngine:
                     for k in keys:
                         W[k[len("language_model."):]] = sf.get_tensor(k)
         with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
-            self.readout = sf.get_tensor("weight").to(self.dtype)
+            self.readout = sf.get_tensor("weight").to(torch.float32 if os.environ.get("PPLX_READOUT_FP32") == "1" else self.dtype)
         self.embed = W.pop("embed_tokens.weight")
+        if os.environ.get("PPLX_EMBED_CPU") == "1":  # memory-only: the bf16 embedding table (~2.4 GiB) lives in host RAM;
+            self.embed = self.embed.cpu()  # rows are gathered on the host per step and copied (exact, same values)
+            self._emb_buf = None
         self.norm_w = W.pop("norm.weight")
 
         # nvfp4 group specs: "gu" (all layers) or "gu@4-59" / "gu@4-30+40-59" (inclusive layer ranges); legacy ".gu" ok
@@ -740,7 +744,15 @@ class PplxEngine:
         freqs = pos[:, None] * self.inv_freq[None]
         emb = torch.cat([freqs, freqs], -1)
         cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
-        h = F.embedding(ids, self.embed)
+        if self.embed.is_cuda:
+            h = F.embedding(ids, self.embed)
+        else:
+            T = ids.numel()
+            if self._emb_buf is None or self._emb_buf.shape[0] < T:
+                self._emb_buf = torch.empty((max(T, 16384), self.embed.shape[1]), dtype=self.embed.dtype).pin_memory()
+            buf = self._emb_buf[:T]
+            torch.index_select(self.embed, 0, ids.cpu(), out=buf)
+            h = buf.to(dev, non_blocking=False)
         fq = self.linear_mode == "fp8" and self.fused_quant
         if fq and self._first_mode(self.layers[0]) == "fp8":
             x, x8, xs = K.rms_q(h, self.layers[0]["in_norm"], self.eps)
@@ -789,6 +801,8 @@ class PplxEngine:
             else:
                 h, x = K.add_rms(h, d, self.norm_w if last else self.layers[i + 1]["in_norm"], self.eps)
                 xq = None
+        if self.readout.dtype == torch.float32:  # d3 runtime: hidden.float() @ readout.T in fp32
+            return x.float() @ self.readout.T
         return F.linear(x, self.readout).float()
 
     def probs(self, logits, counts, temperature=None):
