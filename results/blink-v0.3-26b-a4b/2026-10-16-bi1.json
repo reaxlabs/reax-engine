@@ -1,0 +1,312 @@
+{
+ "model": "blink-v0.3-26b-a4b",
+ "utc": "2026-10-16T09:46:28Z",
+ "spec": {
+  "id": "blink-v0.3-26b-a4b",
+  "hf_repo": "PixilabAI/Blink-v0.3-26B-A4B-NVFP4",
+  "revision": "08caad20c1574fb76341ca809ff38fdb081f7d4a",
+  "licence": "Apache-2.0",
+  "licence_notice": "Apache-2.0 per the model card tag (base google/gemma-4-26B-A4B-it, Apache-2.0); the repo ships no LICENSE file. Weights are not mirrored here.",
+  "params": "~26B (4B active)",
+  "arch": "Gemma-4 MoE, NVFP4 (ModelOpt) checkpoint, 17.5 GB; needs a Blackwell GPU (NVFP4)",
+  "readout": "Surogate decisions v1 (same prompt as Rune), letters A..Z (two-letter codes above 26 options), softmax over processed logprobs / T=1.3",
+  "backend_kind": "vllm",
+  "status": "vllm-backed",
+  "hardware": "Blackwell GPU (NVFP4); 31 GiB peak measured at utilization 0.30, 32k context; measured RTX PRO 6000",
+  "aliases": [
+   "blink",
+   "s1-fast-2"
+  ],
+  "gated": false,
+  "weights_gb": 17.5,
+  "notes": "serving recipe = vLLM with the bi1 preset (batch-invariant, c1 zero flips); the author's own readme serves it with plain vLLM.",
+  "has_factory": true
+ },
+ "env": {
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB, 580.178.04",
+  "engine_image_id": "sha256:dab89e1a1e38a0212c6cf5e5d0a0894904210589df4002a555754cfe0b7ecd6b",
+  "reference_image_id": "sha256:dab89e1a1e38a0212c6cf5e5d0a0894904210589df4002a555754cfe0b7ecd6b",
+  "peak_gpu_mem_mib": {
+   "reference": 90533,
+   "reax": 97069
+  },
+  "gpu_arg": "device=1",
+  "preset": "bi1",
+  "reax_opts": "",
+  "concurrency": 16,
+  "load_seconds": 60,
+  "di_limit": 1000,
+  "repo_head": "unknown"
+ },
+ "agreement": {
+  "p300": {
+   "set": "p300",
+   "contract": "s1",
+   "n_items": 300,
+   "utc": "2026-10-16T09:43:14Z",
+   "ref": {
+    "target": "/workspace/reax-validate/cache/blink-v0.3-26b-a4b/08caad20c1574fb76341ca809ff38fdb081f7d4a/ref-p300.jsonl",
+    "answered": 297,
+    "unsupported": 3,
+    "errors": 0,
+    "missing": 0
+   },
+   "cand": {
+    "target": "url",
+    "answered": 297,
+    "unsupported": 3,
+    "errors": 0,
+    "missing": 0
+   },
+   "paired": {
+    "n": 297,
+    "top_choice_agreement": 0.936026936026936,
+    "mean_abs_dp": 0.028182525762968664,
+    "max_abs_dp": 0.7291904387880431,
+    "mean_abs_dlogp": 0.2791128860652487,
+    "max_abs_dlogp": 2.0510680995186172,
+    "frac_max_dp_gt_0.005": 0.7609427609427609
+   },
+   "by_type": {
+    "choice": {
+     "n": 147,
+     "top_choice_agreement": 0.9387755102040817,
+     "mean_abs_dp": 0.01874988097793673,
+     "max_abs_dp": 0.37425961574639033,
+     "mean_abs_dlogp": 0.3132628047108612,
+     "max_abs_dlogp": 1.7718822473122007,
+     "frac_max_dp_gt_0.005": 0.7346938775510204
+    },
+    "noul": {
+     "n": 75,
+     "top_choice_agreement": 0.92,
+     "mean_abs_dp": 0.05151214143020375,
+     "max_abs_dp": 0.7291904387880431,
+     "mean_abs_dlogp": 0.22500001141870124,
+     "max_abs_dlogp": 2.0510680995186172,
+     "frac_max_dp_gt_0.005": 0.6933333333333334
+    },
+    "score": {
+     "n": 75,
+     "top_choice_agreement": 0.9466666666666667,
+     "mean_abs_dp": 0.023340893874396158,
+     "max_abs_dp": 0.21791218354069042,
+     "mean_abs_dlogp": 0.26629192016639547,
+     "max_abs_dlogp": 1.53164916845048,
+     "frac_max_dp_gt_0.005": 0.88
+    }
+   },
+   "gold": {
+    "n": 297,
+    "ref_accuracy": 0.8047138047138047,
+    "cand_accuracy": 0.8114478114478114,
+    "ref_mean_gold_prob": 0.7409466689409749,
+    "cand_mean_gold_prob": 0.7485385388700986,
+    "accuracy_delta": {
+     "delta_pp": 0.6734006734006734,
+     "ci95": [
+      -1.6835016835016836,
+      3.367003367003367
+     ],
+     "reps": 1000,
+     "n": 297
+    },
+    "gold_prob_delta": {
+     "delta_pp": 0.7591869929123537,
+     "ci95": [
+      -0.15573858709972943,
+      1.7920340098950525
+     ],
+     "reps": 1000,
+     "n": 297
+    },
+    "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+   }
+  },
+  "di": {
+   "set": "di",
+   "contract": "s1",
+   "n_items": 5129,
+   "utc": "2026-10-16T09:44:27Z",
+   "ref": {
+    "target": "/workspace/reax-validate/cache/blink-v0.3-26b-a4b/08caad20c1574fb76341ca809ff38fdb081f7d4a/ref-di.jsonl",
+    "answered": 5016,
+    "unsupported": 113,
+    "errors": 0,
+    "missing": 0
+   },
+   "cand": {
+    "target": "url",
+    "answered": 5016,
+    "unsupported": 113,
+    "errors": 0,
+    "missing": 0
+   },
+   "paired": {
+    "n": 5016,
+    "top_choice_agreement": 0.9742822966507177,
+    "mean_abs_dp": 0.02127660881238667,
+    "max_abs_dp": 0.7405807709748213,
+    "mean_abs_dlogp": 0.14457794707534666,
+    "max_abs_dlogp": 6.528625718117755,
+    "frac_max_dp_gt_0.005": 0.72188995215311
+   },
+   "by_type": {
+    "choice": {
+     "n": 4848,
+     "top_choice_agreement": 0.9738036303630363,
+     "mean_abs_dp": 0.021142557502432678,
+     "max_abs_dp": 0.7405807709748213,
+     "mean_abs_dlogp": 0.14576016724035049,
+     "max_abs_dlogp": 6.528625718117755,
+     "frac_max_dp_gt_0.005": 0.7215346534653465
+    },
+    "noul": {
+     "n": 168,
+     "top_choice_agreement": 0.9880952380952381,
+     "mean_abs_dp": 0.025144946613916145,
+     "max_abs_dp": 0.2056804047955424,
+     "mean_abs_dlogp": 0.11046245088523608,
+     "max_abs_dlogp": 0.7404216980361538,
+     "frac_max_dp_gt_0.005": 0.7321428571428571
+    }
+   },
+   "gold": {
+    "n": 3459,
+    "ref_accuracy": 0.8620988725065047,
+    "cand_accuracy": 0.8615206707140792,
+    "ref_mean_gold_prob": 0.7801512843419489,
+    "cand_mean_gold_prob": 0.781386648270587,
+    "accuracy_delta": {
+     "delta_pp": -0.05782017924255565,
+     "ci95": [
+      -0.5689001264222503,
+      0.44969083754918493
+     ],
+     "reps": 1000,
+     "n": 3459
+    },
+    "gold_prob_delta": {
+     "delta_pp": 0.12353639286380064,
+     "ci95": [
+      -0.04816063610588741,
+      0.2802567271513753
+     ],
+     "reps": 1000,
+     "n": 3459
+    },
+    "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+   }
+  }
+ },
+ "throughput": {
+  "p300": {
+   "reference": {
+    "set": "p300",
+    "contract": "s1",
+    "grouped": false,
+    "max_chars": 0,
+    "n_requests": 300,
+    "utc": "2026-10-16T09:40:37Z",
+    "levels": [
+     {
+      "concurrency": 1,
+      "wall_s": 60.0,
+      "requests": 3951,
+      "decisions": 3951,
+      "decisions_per_s": 65.84,
+      "requests_per_s": 65.84,
+      "http_codes": {
+       "200": 3951,
+       "422": 42
+      },
+      "req_p50_ms": 14.4,
+      "req_p95_ms": 20.5,
+      "req_max_ms": 49.2,
+      "single_q_p50_ms": 14.4,
+      "single_q_p95_ms": 20.5
+     },
+     {
+      "concurrency": 16,
+      "wall_s": 60.0,
+      "requests": 14334,
+      "decisions": 14334,
+      "decisions_per_s": 238.72,
+      "requests_per_s": 238.72,
+      "http_codes": {
+       "200": 14334,
+       "422": 147
+      },
+      "req_p50_ms": 66.9,
+      "req_p95_ms": 71.1,
+      "req_max_ms": 80.4,
+      "single_q_p50_ms": 66.9,
+      "single_q_p95_ms": 71.1
+     }
+    ]
+   },
+   "reax": {
+    "set": "p300",
+    "contract": "s1",
+    "grouped": false,
+    "max_chars": 0,
+    "n_requests": 300,
+    "utc": "2026-10-16T09:46:27Z",
+    "levels": [
+     {
+      "concurrency": 1,
+      "wall_s": 60.0,
+      "requests": 2463,
+      "decisions": 2463,
+      "decisions_per_s": 41.05,
+      "requests_per_s": 41.05,
+      "http_codes": {
+       "200": 2463,
+       "422": 27
+      },
+      "req_p50_ms": 23.1,
+      "req_p95_ms": 31.6,
+      "req_max_ms": 66.3,
+      "single_q_p50_ms": 23.1,
+      "single_q_p95_ms": 31.6
+     },
+     {
+      "concurrency": 16,
+      "wall_s": 60.1,
+      "requests": 10145,
+      "decisions": 10145,
+      "decisions_per_s": 168.82,
+      "requests_per_s": 168.82,
+      "http_codes": {
+       "200": 10145,
+       "422": 104
+      },
+      "req_p50_ms": 95.2,
+      "req_p95_ms": 99.7,
+      "req_max_ms": 105.2,
+      "single_q_p50_ms": 95.2,
+      "single_q_p95_ms": 99.7
+     }
+    ]
+   },
+   "reax_over_reference_decisions_per_s": {
+    "1": 0.623,
+    "16": 0.707
+   }
+  },
+  "di_grouped": {
+   "reference": null,
+   "reax": null,
+   "reax_over_reference_decisions_per_s": {}
+  }
+ },
+ "headline": {
+  "p300_top_choice_agreement": 0.936026936026936,
+  "p300_mean_abs_dp": 0.028182525762968664,
+  "p300_max_abs_dp": 0.7291904387880431,
+  "speedup_by_concurrency_p300": {
+   "1": 0.623,
+   "16": 0.707
+  }
+ }
+}

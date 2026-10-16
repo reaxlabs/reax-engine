@@ -1,0 +1,312 @@
+{
+ "model": "rune-26b-a4b",
+ "utc": "2026-10-16T09:24:15Z",
+ "spec": {
+  "id": "rune-26b-a4b",
+  "hf_repo": "surogate/rune-26b-a4b-GGUF",
+  "revision": "c6b360d47895bb77bdf3805a13ee5a5557ab1921",
+  "licence": "Apache-2.0",
+  "licence_notice": "Apache-2.0 (base google/gemma-4-26B-A4B-it). HF-gated: each operator accepts the gate with their own account; do not mirror the weights.",
+  "params": "~26B (4B active)",
+  "arch": "Gemma-4 MoE (from the base config: 30 layers, 25 sliding + 5 full attention, 128 experts top-8); the repo name says GGUF but the files are bf16 safetensors",
+  "readout": "Surogate decisions v1 (system line + SHARED STATE JSON user turn), letters A..Z then single-token two-letter codes, raw soft-capped logits / T=2.0",
+  "backend_kind": "vllm",
+  "status": "vllm-backed",
+  "hardware": "80+ GB card (60 GB minimum); measured RTX PRO 6000 97.9 GB",
+  "aliases": [
+   "rune",
+   "s1-pro"
+  ],
+  "gated": true,
+  "weights_gb": 52,
+  "notes": "Rune's own config.json is not readable without the gate; architecture is taken from the base model's config.",
+  "has_factory": true
+ },
+ "env": {
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB, 580.178.04",
+  "engine_image_id": "sha256:6359fcaf8a3a4d5ba5b3386a65c6cc20673ca7a71e05866590c526312add92f3",
+  "reference_image_id": "sha256:9d47b92adea7aec64b5ed3ce8afe91e231699455ff5f251324314cce71cd215d",
+  "peak_gpu_mem_mib": {
+   "reference": 83719,
+   "reax": 83997
+  },
+  "gpu_arg": "device=1",
+  "preset": "deterministic",
+  "reax_opts": "",
+  "concurrency": 16,
+  "load_seconds": 60,
+  "di_limit": 1000,
+  "repo_head": "unknown"
+ },
+ "agreement": {
+  "p300": {
+   "set": "p300",
+   "contract": "s1",
+   "n_items": 300,
+   "utc": "2026-10-16T09:19:03Z",
+   "ref": {
+    "target": "/workspace/reax-validate/cache/rune-26b-a4b/c6b360d47895bb77bdf3805a13ee5a5557ab1921/ref-p300.jsonl",
+    "answered": 297,
+    "unsupported": 3,
+    "errors": 0,
+    "missing": 0
+   },
+   "cand": {
+    "target": "url",
+    "answered": 297,
+    "unsupported": 3,
+    "errors": 0,
+    "missing": 0
+   },
+   "paired": {
+    "n": 297,
+    "top_choice_agreement": 1.0,
+    "mean_abs_dp": 1.8741671994298157e-17,
+    "max_abs_dp": 2.220446049250313e-16,
+    "mean_abs_dlogp": 2.6602994150772705e-14,
+    "max_abs_dlogp": 6.6204819404447335e-12,
+    "frac_max_dp_gt_0.005": 0.0
+   },
+   "by_type": {
+    "choice": {
+     "n": 147,
+     "top_choice_agreement": 1.0,
+     "mean_abs_dp": 1.4984743859014117e-17,
+     "max_abs_dp": 2.220446049250313e-16,
+     "mean_abs_dlogp": 6.538032379643508e-17,
+     "max_abs_dlogp": 1.7763568394002505e-15,
+     "frac_max_dp_gt_0.005": 0.0
+    },
+    "noul": {
+     "n": 75,
+     "top_choice_agreement": 1.0,
+     "mean_abs_dp": 3.0689727391070967e-17,
+     "max_abs_dp": 1.3796472644878044e-16,
+     "mean_abs_dlogp": 1.0516691451518637e-13,
+     "max_abs_dlogp": 6.6204819404447335e-12,
+     "frac_max_dp_gt_0.005": 0.0
+    },
+    "score": {
+     "n": 75,
+     "top_choice_agreement": 1.0,
+     "mean_abs_dp": 1.4157195742682074e-17,
+     "max_abs_dp": 2.220446049250313e-16,
+     "mean_abs_dlogp": 5.279688723251279e-17,
+     "max_abs_dlogp": 8.881784197001252e-16,
+     "frac_max_dp_gt_0.005": 0.0
+    }
+   },
+   "gold": {
+    "n": 297,
+    "ref_accuracy": 0.8316498316498316,
+    "cand_accuracy": 0.8316498316498316,
+    "ref_mean_gold_prob": 0.7472327677705937,
+    "cand_mean_gold_prob": 0.7472327677705937,
+    "accuracy_delta": {
+     "delta_pp": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "reps": 1000,
+     "n": 297
+    },
+    "gold_prob_delta": {
+     "delta_pp": 8.550960164410928e-16,
+     "ci95": [
+      -1.2849803525754127e-16,
+      1.8410263960535e-15
+     ],
+     "reps": 1000,
+     "n": 297
+    },
+    "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+   }
+  },
+  "di": {
+   "set": "di",
+   "contract": "s1",
+   "n_items": 5129,
+   "utc": "2026-10-16T09:22:14Z",
+   "ref": {
+    "target": "/workspace/reax-validate/cache/rune-26b-a4b/c6b360d47895bb77bdf3805a13ee5a5557ab1921/ref-di.jsonl",
+    "answered": 5029,
+    "unsupported": 100,
+    "errors": 0,
+    "missing": 0
+   },
+   "cand": {
+    "target": "url",
+    "answered": 4981,
+    "unsupported": 148,
+    "errors": 0,
+    "missing": 0
+   },
+   "paired": {
+    "n": 4981,
+    "top_choice_agreement": 1.0,
+    "mean_abs_dp": 1.5104241740075356e-17,
+    "max_abs_dp": 2.220446049250313e-16,
+    "mean_abs_dlogp": 1.525384829892138e-16,
+    "max_abs_dlogp": 5.453415496958769e-13,
+    "frac_max_dp_gt_0.005": 0.0
+   },
+   "by_type": {
+    "choice": {
+     "n": 4813,
+     "top_choice_agreement": 1.0,
+     "mean_abs_dp": 1.479826769725512e-17,
+     "max_abs_dp": 2.220446049250313e-16,
+     "mean_abs_dlogp": 3.694176581063812e-17,
+     "max_abs_dlogp": 1.7763568394002505e-15,
+     "frac_max_dp_gt_0.005": 0.0
+    },
+    "noul": {
+     "n": 168,
+     "top_choice_agreement": 1.0,
+     "mean_abs_dp": 2.3870033812062187e-17,
+     "max_abs_dp": 2.220446049250313e-16,
+     "mean_abs_dlogp": 3.464246815015909e-15,
+     "max_abs_dlogp": 5.453415496958769e-13,
+     "frac_max_dp_gt_0.005": 0.0
+    }
+   },
+   "gold": {
+    "n": 3425,
+    "ref_accuracy": 0.8595620437956204,
+    "cand_accuracy": 0.8595620437956204,
+    "ref_mean_gold_prob": 0.806912912744634,
+    "cand_mean_gold_prob": 0.806912912744634,
+    "accuracy_delta": {
+     "delta_pp": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "reps": 1000,
+     "n": 3425
+    },
+    "gold_prob_delta": {
+     "delta_pp": 4.991745940967969e-16,
+     "ci95": [
+      2.2549437611790977e-16,
+      7.571322646994481e-16
+     ],
+     "reps": 1000,
+     "n": 3425
+    },
+    "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+   }
+  }
+ },
+ "throughput": {
+  "p300": {
+   "reference": {
+    "set": "p300",
+    "contract": "s1",
+    "grouped": false,
+    "max_chars": 0,
+    "n_requests": 300,
+    "utc": "2026-10-16T09:17:05Z",
+    "levels": [
+     {
+      "concurrency": 1,
+      "wall_s": 60.0,
+      "requests": 938,
+      "decisions": 938,
+      "decisions_per_s": 15.63,
+      "requests_per_s": 15.63,
+      "http_codes": {
+       "200": 938,
+       "400": 11
+      },
+      "req_p50_ms": 62.6,
+      "req_p95_ms": 74.6,
+      "req_max_ms": 94.6,
+      "single_q_p50_ms": 62.6,
+      "single_q_p95_ms": 74.6
+     },
+     {
+      "concurrency": 16,
+      "wall_s": 60.3,
+      "requests": 2816,
+      "decisions": 2816,
+      "decisions_per_s": 46.7,
+      "requests_per_s": 46.7,
+      "http_codes": {
+       "200": 2816,
+       "400": 30
+      },
+      "req_p50_ms": 340.2,
+      "req_p95_ms": 394.0,
+      "req_max_ms": 433.8,
+      "single_q_p50_ms": 340.2,
+      "single_q_p95_ms": 394.0
+     }
+    ]
+   },
+   "reax": {
+    "set": "p300",
+    "contract": "s1",
+    "grouped": false,
+    "max_chars": 0,
+    "n_requests": 300,
+    "utc": "2026-10-16T09:24:15Z",
+    "levels": [
+     {
+      "concurrency": 1,
+      "wall_s": 60.0,
+      "requests": 951,
+      "decisions": 951,
+      "decisions_per_s": 15.84,
+      "requests_per_s": 15.84,
+      "http_codes": {
+       "200": 951,
+       "422": 12
+      },
+      "req_p50_ms": 61.9,
+      "req_p95_ms": 73.8,
+      "req_max_ms": 93.7,
+      "single_q_p50_ms": 61.9,
+      "single_q_p95_ms": 73.8
+     },
+     {
+      "concurrency": 16,
+      "wall_s": 60.2,
+      "requests": 2338,
+      "decisions": 2338,
+      "decisions_per_s": 38.84,
+      "requests_per_s": 38.84,
+      "http_codes": {
+       "200": 2338,
+       "422": 24
+      },
+      "req_p50_ms": 409.9,
+      "req_p95_ms": 469.2,
+      "req_max_ms": 513.7,
+      "single_q_p50_ms": 409.9,
+      "single_q_p95_ms": 469.2
+     }
+    ]
+   },
+   "reax_over_reference_decisions_per_s": {
+    "1": 1.013,
+    "16": 0.832
+   }
+  },
+  "di_grouped": {
+   "reference": null,
+   "reax": null,
+   "reax_over_reference_decisions_per_s": {}
+  }
+ },
+ "headline": {
+  "p300_top_choice_agreement": 1.0,
+  "p300_mean_abs_dp": 1.8741671994298157e-17,
+  "p300_max_abs_dp": 2.220446049250313e-16,
+  "speedup_by_concurrency_p300": {
+   "1": 1.013,
+   "16": 0.832
+  }
+ }
+}

@@ -35,21 +35,16 @@ def test_dry_run(tmp_path, model, contract):
     (work / "weights" / model / f".complete-{rev}").touch()
     env = dict(os.environ, PATH=f"{ROOT / 'tests' / 'stubs'}:{os.environ['PATH']}", STUB_DIR=str(stub),
                FAKE_SERVER=str(ROOT / "tests" / "fake_decide_server.py"), WORK=str(work), REAX_BENCH_DATA=str(data),
-               CONC="2", LOAD_SECONDS="0.3", DI_LIMIT="4", REAX_SUBNET_DIR=str(tmp_path), MIN_FREE_GB="1")
+               CONC="2", LOAD_SECONDS="0.3", DI_LIMIT="4", REAX_SUBNET_DIR=str(tmp_path), MIN_FREE_GB="1", RESULTS_DIR=str(tmp_path / "results"))
     r = subprocess.run(["bash", str(ROOT / "bench" / "pod_validate.sh"), model], cwd=ROOT, env=env, capture_output=True, text=True, timeout=180)
-    out = ROOT / "results" / model
-    try:
-        assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
-        res = json.loads(next(out.glob("*.json")).read_text())
-        assert res["model"] == model and res["env"]["gpu"].startswith("Fake GPU")
-        assert res["headline"]["p300_top_choice_agreement"] == 1.0
-        assert res["agreement"]["di"]["paired"]["n"] == 8
-        assert set(res["headline"]["speedup_by_concurrency_p300"]) == {"1", "2"}
-        calls = (stub / "calls.log").read_text()
-        assert "--read-only" in calls and "--cap-drop ALL" in calls and "OPENAI_API_KEY=" in calls and ":/model:ro" in calls
-        assert ("RUNE_PORT=8001" in calls) == (model == "rune-26b-a4b")
-        assert f"REAX_MODEL={model}" in calls
-    finally:
-        shutil.rmtree(out, ignore_errors=True)
-        if not any((ROOT / "results").iterdir()):
-            shutil.rmtree(ROOT / "results", ignore_errors=True)
+    out = tmp_path / "results" / model
+    assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
+    res = json.loads(next(out.glob("*.json")).read_text())
+    assert res["model"] == model and res["env"]["gpu"].startswith("Fake GPU")
+    assert res["headline"]["p300_top_choice_agreement"] == 1.0
+    assert res["agreement"]["di"]["paired"]["n"] == 8
+    assert set(res["headline"]["speedup_by_concurrency_p300"]) == {"1", "2"}
+    calls = (stub / "calls.log").read_text()
+    assert "--read-only" in calls and "--cap-drop ALL" in calls and "OPENAI_API_KEY=" in calls and ":/model:ro" in calls
+    assert ("RUNE_PORT=8001" in calls) == (model == "rune-26b-a4b")
+    assert f"REAX_MODEL={model}" in calls
