@@ -96,10 +96,12 @@ class OnnxHeadsBackend:
 
     def __init__(self, model_dir, spec: HeadsSpec = S1_LLM_AUTO_ROUTER, threads: int | None = None,
                  providers: list | None = None, verify: bool = True):
+        root = Path(model_dir)
+        if not root.is_dir():
+            raise FileNotFoundError(f"{spec.model_id}: model directory {root} not found")
         import onnxruntime as ort
         from tokenizers import Tokenizer
 
-        root = Path(model_dir)
         if verify:
             for rel, want in spec.sha256.items():
                 if sha256_file(root / rel) != want:
