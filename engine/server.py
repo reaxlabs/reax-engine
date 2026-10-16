@@ -119,7 +119,7 @@ class EngineBackend:
                 for f in fs:
                     f.result()
                 if self.shared and n_seq > 1:  # one shared group of this full size: prefix + n_seq suffixes
-                    P = T // n_seq - 40 if int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64 else T - 40 * n_seq
+                    P = T // n_seq - 40 if self.eng.shared_until < self.eng.n_layers else T - 40 * n_seq
                     if P < 64:
                         continue
                     subs = [([1] * 40, 2, Future()) for _ in range(n_seq)]
@@ -133,7 +133,7 @@ class EngineBackend:
                     P = int(min(MAX_TOKENS - 600, max(64, rng.lognormvariate(6.8, 0.8))))
                     subs = [([1] * int(max(8, rng.lognormvariate(4.5, 0.7))), rng.randint(2, 12), Future())
                             for _ in range(rng.choice([1, 2, 3, 5, 8, 12]))]
-                    n = (P * len(subs) if int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64 else P) + sum(len(x[0]) for x in subs)
+                    n = (P * len(subs) if self.eng.shared_until < self.eng.n_layers else P) + sum(len(x[0]) for x in subs)
                     if tot + n > self.budget:
                         break
                     items.append(([0] * n, None, ([1] * P, subs)))
@@ -222,7 +222,7 @@ class EngineBackend:
                 # so the full token count is what the step budget has to bound. A request larger than the budget is split
                 # into several shared groups (same prefix) so that no step exceeds the budget (kernel shapes stay inside
                 # the warmed-up range, no int32 offset overflow).
-                full = int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64
+                full = self.eng.shared_until < self.eng.n_layers
                 cost = (lambda n_sfx: k + n_sfx) if full else (lambda n_sfx: n_sfx)
                 chunks, cur, tot = [], [], 0 if full else k
                 for key, (ids, n) in enc.items():

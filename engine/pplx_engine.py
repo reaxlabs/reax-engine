@@ -426,6 +426,9 @@ class PplxEngine:
         self.nv_check = os.environ.get("PPLX_NV_CHECK") == "1"
         self._chk_stats = {}
         self._one = torch.ones((), device=device, dtype=torch.float32)
+        # shared-state mode (forward_groups): layers [0, shared_until) encode a request's common prefix once; default 16 =
+        # the measured quality/speed point (sharing all layers is too lossy: state tokens never see the question)
+        self.shared_until = int(os.environ.get("PPLX_SHARED_UNTIL", "16"))
         self.n_streams = int(os.environ.get("PPLX_STREAMS", "1"))
         self.stream_min_tokens = int(os.environ.get("PPLX_STREAM_MIN_TOKENS", "4096"))
         self.split_conv_min_T = int(os.environ.get("PPLX_SPLIT_CONV_MIN_T", "8192"))
@@ -1005,7 +1008,7 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
         last_idx = T_(read)
-        sh.until = int(os.environ.get("PPLX_SHARED_UNTIL", str(self.n_layers))) if until is None else until
+        sh.until = self.shared_until if until is None else until
         if sh.until < self.n_layers:  # metadata of the full layout used after layer `until - 1`
             # same decision order as `read`
             g_idx, lens, k = [], [], 0
