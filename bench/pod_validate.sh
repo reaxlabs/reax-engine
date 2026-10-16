@@ -46,6 +46,7 @@ NEED=${MIN_FREE_GB:-$(python3 -c "print(int($GB*1.15+60))")}
 # per-model wiring: container image, REAX command env, reference command, contract
 GPU=${GPU:-all}; PORT_OFF=${PORT_OFF:-0}
 GPU_ARG="all"; [ "$GPU" != all ] && GPU_ARG="device=$GPU"
+REF_MODEL=model
 PORT_REF=$((8001+PORT_OFF)); PORT_REAX=$((8741+PORT_OFF)); TOKEN=pod-validate; REF_ENV=()
 NAME_REF=reax-ref-$ID; NAME_CAND=reax-cand-$ID
 case "$ID" in
@@ -64,7 +65,7 @@ case "$ID" in
   rune-26b-a4b)
     ENGINE_IMAGE=reax-vllm-readout; DOCKERFILE=docker/vllm-readout/Dockerfile; CONTRACT=s1
     REAX_CMD=(); REF_IMAGE=${REF_IMAGE:-reax-s1-pro-runtime}; REF_ENTRY=""   # the image's own entrypoint (vLLM + Rune adapter)
-    REF_CMD=(); REF_ENV=(-e RUNE_PORT=$PORT_REF -e RUNE_SKIP_VERIFY=1) ;;
+    REF_CMD=(); REF_ENV=(-e RUNE_PORT=$PORT_REF -e RUNE_SKIP_VERIFY=1); REF_MODEL=rune ;;   # the reference adapter 404s any other model name
   *) echo "no pod wiring for $ID"; exit 2 ;;
 esac
 export S1M_INTERNAL_TOKEN=$TOKEN
@@ -117,9 +118,9 @@ phase() {  # label(ref|cand) port -> agreement responses/report + load levels un
   local C=$WORK/cache/$ID/$REV; mkdir -p "$C"
   if [ "${SKIP_AGREEMENT:-0}" = 1 ]; then :
   elif [ "$label" = ref ]; then
-    python3 -m bench.agreement --ref "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --fetch-only --workers 8 --ref-cache "$C/ref-p300.jsonl"
+    python3 -m bench.agreement --ref "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --fetch-only --ref-model "$REF_MODEL" --workers 8 --ref-cache "$C/ref-p300.jsonl"
     if [ "$DI_LIMIT" -gt 0 ]; then
-      python3 -m bench.agreement --ref "$url" --contract "$CONTRACT" --set di --limit "$DI_LIMIT" --data-dir "$DATA" --fetch-only --workers 8 --ref-cache "$C/ref-di.jsonl"
+      python3 -m bench.agreement --ref "$url" --contract "$CONTRACT" --set di --limit "$DI_LIMIT" --data-dir "$DATA" --fetch-only --ref-model "$REF_MODEL" --workers 8 --ref-cache "$C/ref-di.jsonl"
     fi
   else
     python3 -m bench.agreement --ref "$C/ref-p300.jsonl" --cand "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --workers 8 --out "$RAW/agreement-p300.json" >/dev/null
@@ -127,9 +128,10 @@ phase() {  # label(ref|cand) port -> agreement responses/report + load levels un
       python3 -m bench.agreement --ref "$C/ref-di.jsonl" --cand "$url" --contract "$CONTRACT" --set di --limit "$DI_LIMIT" --data-dir "$DATA" --workers 8 --out "$RAW/agreement-di.json" >/dev/null
     fi
   fi
-  python3 -m bench.loadgen --url "$url" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "1,$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-p300.json"
+  local LM=model; [ "$label" = ref ] && LM=$REF_MODEL
+  python3 -m bench.loadgen --url "$url" --model "$LM" --contract "$CONTRACT" --set p300 --data-dir "$DATA" --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "1,$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-p300.json"
   if [ "$DI_LIMIT" -gt 0 ] && [ "$CONTRACT" = systemone ]; then
-    python3 -m bench.loadgen --url "$url" --contract systemone --set di --limit 200 --grouped --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-di.json"
+    python3 -m bench.loadgen --url "$url" --model "$LM" --contract systemone --set di --limit 200 --grouped --max-chars "${LOAD_MAX_CHARS:-0}" --concurrency "$CONC" --seconds "$LOAD_SECONDS" --out "$RAW/load-$label-di.json"
   fi
   kill "$SAMPLER" 2>/dev/null || true; wait "$SAMPLER" 2>/dev/null || true
   sort -n "$RAW/mem-$label.csv" | tail -1 > "$RAW/peak-mem-$label.txt"
