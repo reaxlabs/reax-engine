@@ -94,6 +94,8 @@ class PlumbEngine(PplxEngine):
             kw.setdefault("prune_last", False)
             kw["compile"] = False  # fused/compiled elementwise kernels would change rounding
         pin_fla_autotune()
+        if not self.exact:
+            kw.setdefault("keep_full_last", True)  # padded CUDA-graph runs need the unpruned last layer
         kw.setdefault("causal", True)
         kw.setdefault("gva_native", os.environ.get("PLUMB_GVA", "1"))
         self.letter_ids = None
@@ -203,7 +205,7 @@ class _Graph:
         cu_cpu = torch.tensor(offs, dtype=torch.int64)
 
         def fwd():
-            return eng._drive([eng._core_gen(self.ids, cu, cu64, offs, n, self.last, cos, sin, cu_cpu)], [None])[0]
+            return eng._drive([eng._core_gen(self.ids, cu, cu64, offs, n, self.last, cos, sin, cu_cpu, prune=False)], [None])[0]
         stream = stream or torch.cuda.Stream()
         stream.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(stream):

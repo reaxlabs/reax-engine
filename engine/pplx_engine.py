@@ -384,10 +384,11 @@ class PplxEngine:
 
     def __init__(self, model_dir, device="cuda", linear_mode="bf16", attn_impl="auto", gva_native=False,
                  fp8_skip=(), fuse=True, conv_impl="fla", compile=False, fused_quant=True, nvfp4_groups=(), nvfp4_scales=None,
-                 causal=False, prune_last=True):
+                 causal=False, prune_last=True, keep_full_last=False):
         self.dir = Path(model_dir)
         raw_cfg = json.loads((self.dir / "config.json").read_text())
         cfg = raw_cfg.get("text_config", raw_cfg)
+        self.keep_full_last = keep_full_last
         self.prune_last = prune_last  # last layer: Q/o_proj/MLP/readout only on the last tokens (False: full layer, like HF)
         self.causal = causal  # full-attention layers: causal (decoder LMs) or noncausal (pplx-decider)
         self.cfg = cfg
@@ -475,6 +476,8 @@ class PplxEngine:
                 if i == self.n_layers - 1 and self.prune_last:  # last layer: Q only for readout rows, K/V for all tokens
                     L["q_only"] = lin(wq, f"{i}.q")
                     L["kv_only"] = lin([wk, wv], f"{i}.kv")
+                    if self.keep_full_last:  # also the unpruned variant (right-padded graph runs, see _core_gen(prune=False))
+                        L["qkv"] = lin([wq, wk, wv], f"{i}.qkv")
                 else:
                     L["qkv"] = lin([wq, wk, wv], f"{i}.qkv")
                 del wq, wk, wv
@@ -774,9 +777,11 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
 
-    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None):
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None):
         """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
-        inside a CUDA graph with static `ids` / `last_idx`)."""
+        inside a CUDA graph with static `ids` / `last_idx`). prune=False computes the last layer for every row (needed when
+        the sequences are right-padded: the pruned last-layer attention assumes the read row is the last key)."""
+        prune = self.prune_last if prune is None else prune
         h = F.embedding(ids, self.embed)
         fq = self.linear_mode == "fp8" and self.fused_quant
         if fq and self._first_mode(self.layers[0]) == "fp8":
@@ -789,7 +794,7 @@ class PplxEngine:
             last = i == self.n_layers - 1
             if L["type"] == "linear_attention":
                 d = self._deltanet(L, x, cu64, xq, cu_cpu)
-            elif not (last and self.prune_last):
+            elif not (last and prune):
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq)
             else:
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq)
@@ -828,7 +833,7 @@ class PplxEngine:
                 xq = None
             if self._trace is not None:  # debugging: residual stream of the last token of every decision after each layer
                 self._trace.append((h if h.shape[0] == last_idx.shape[0] else h[last_idx]).float().clone())
-        if not self.prune_last:
+        if not prune:
             x = x[last_idx]
         return F.linear(x, self.readout).float()
 

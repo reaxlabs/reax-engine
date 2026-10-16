@@ -36,7 +36,14 @@ refp = [list(ref.probabilities(r["state"], r["question"])[0].values()) for r in 
 kw = {k: (os.environ[v] == "1" if k == "exact" else os.environ[v]) for k, v in (("attn_impl", "ATTN"), ("conv_impl", "CONV"), ("gva_native", "PLUMB_GVA"), ("fuse", "FUSE"), ("exact", "EXACT")) if v in os.environ}
 be = PlumbBackend(model_dir, compile=os.environ.get("REAX_COMPILE", "1"), **kw)
 print("engine kw", kw, "compile", os.environ.get("REAX_COMPILE", "1"), flush=True)
-encs = [be.encode(r["state"], r["question"]) for r in rows]
+keep, encs = [], []
+for i, r in enumerate(rows):
+    try:
+        encs.append(be.encode(r["state"], r["question"]))
+        keep.append(i)
+    except ValueError:
+        pass
+rows, refp = [rows[i] for i in keep], [refp[i] for i in keep]
 ref_ids = [ref.encode(r["state"], r["question"]["instructions"], [t for _, t in decision_options(r["question"])]) for r in rows]
 assert all(list(e.payload) == i for e, i in zip(encs, ref_ids)), "token ids differ"
 

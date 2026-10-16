@@ -27,7 +27,8 @@ async def main():
     ap.add_argument("--conc", default="1,16,64")
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--warmup", type=int, default=64, help="untimed requests before the first run")
-    ap.add_argument("--dump", default="", help="write the probabilities of one pass over the items (concurrency 16)")
+    ap.add_argument("--dump", default="", help="write the probabilities of one pass over the items")
+    ap.add_argument("--dump-conc", type=int, default=16, help="concurrency of that pass")
     ap.add_argument("--out", default="")
     a = ap.parse_args()
     token = a.token or (open(a.token_file).read().strip() if a.token_file else "")
@@ -69,7 +70,7 @@ async def main():
             await run_n(16, total=a.warmup)
         results = []
         if a.dump:
-            _, _, _, out = await run_n(16, total=len(bodies))
+            _, _, _, out = await run_n(a.dump_conc, total=len(bodies))
             json.dump({str(i): p for i, p in out.items()}, open(a.dump, "w"))
         offset = 10_000
         for c in [int(x) for x in a.conc.split(",")]:

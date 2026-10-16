@@ -265,8 +265,13 @@ def main(argv=None):
 
     def warm():
         t0 = time.time()
-        if not a.no_warmup:
-            backend.warmup()
+        try:
+            if not a.no_warmup:
+                backend.warmup()
+        except BaseException:  # noqa: BLE001 - a failed warm-up must stop the container, not leave /health at 503 forever
+            import traceback
+            traceback.print_exc()
+            os._exit(1)
         app.ready = True
         print(f"ready: warm-up {time.time() - t0:.0f}s", flush=True)
 
