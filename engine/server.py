@@ -103,6 +103,29 @@ class EngineBackend:
                 self.q.put(([1] * L, rng.randint(2, 12), f))
             for f in fs:
                 f.result()
+        # Deterministic sweep over every step size bucket (fla's conv kernel specialises and re-autotunes per 1024-token
+        # bucket of the step, NB = cdiv(T, 1024), and per conv path): otherwise a step size first seen while serving
+        # stalls the GPU loop for tens of seconds (measured: 45 s stalls with fresh Triton caches).
+        for T in range(512, self.budget + 1, 512):
+            for n_seq in (1, 3, 9):
+                lens = [max(16, T // n_seq)] * n_seq
+                if max(lens) > MAX_TOKENS:
+                    continue
+                fs = []
+                for L in lens:
+                    f = Future()
+                    fs.append(f)
+                    self.q.put(([1] * L, 2, f))
+                for f in fs:
+                    f.result()
+                if self.shared and n_seq > 1:  # one shared group of this full size: prefix + n_seq suffixes
+                    P = T // n_seq - 40 if int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64 else T - 40 * n_seq
+                    if P < 64:
+                        continue
+                    subs = [([1] * 40, 2, Future()) for _ in range(n_seq)]
+                    self.q.put(([0] * T, None, ([1] * P, subs)))
+                    for x in subs:
+                        x[2].result()
         if self.shared:  # the suffix-path kernels (conv/DeltaNet/attention on short continuation sequences) too
             for _ in range(max(40, a_warm_steps // 2)):
                 items, tot = [], 0
@@ -111,11 +134,11 @@ class EngineBackend:
                     subs = [([1] * int(max(8, rng.lognormvariate(4.5, 0.7))), rng.randint(2, 12), Future())
                             for _ in range(rng.choice([1, 2, 3, 5, 8, 12]))]
                     n = (P * len(subs) if int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64 else P) + sum(len(x[0]) for x in subs)
-                    if items and tot + n > self.budget:
+                    if tot + n > self.budget:
                         break
                     items.append(([0] * n, None, ([1] * P, subs)))
                     tot += n
-                for it in items:
+                for it in items or []:
                     self.q.put(it)
                 for it in items:
                     for x in it[2][1]:
@@ -195,15 +218,24 @@ class EngineBackend:
             while k < m and all(x[k] == seqs[0][k] for x in seqs):
                 k += 1
             if k >= self.shared_min:
-                subs = []
+                # partial sharing (PPLX_SHARED_UNTIL < layers): the step expands to full sequences after the switch layer,
+                # so the full token count is what the step budget has to bound. A request larger than the budget is split
+                # into several shared groups (same prefix) so that no step exceeds the budget (kernel shapes stay inside
+                # the warmed-up range, no int32 offset overflow).
+                full = int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64
+                cost = (lambda n_sfx: k + n_sfx) if full else (lambda n_sfx: n_sfx)
+                chunks, cur, tot = [], [], 0 if full else k
                 for key, (ids, n) in enc.items():
                     futs[key] = Future()
-                    subs.append((ids[k:], n, futs[key]))
-                # partial sharing (PPLX_SHARED_UNTIL < layers): the step expands to full sequences after the switch layer,
-                # so the full token count is what the step budget has to bound
-                full = int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64
-                ntok = sum(len(ids) for ids, _ in enc.values()) if full else k + sum(len(x[0]) for x in subs)
-                self.q.put(([0] * ntok, None, (seqs[0][:k], subs)))  # len(item[0]) = the step's token count
+                    c = cost(len(ids) - k)
+                    if cur and tot + c > self.budget:
+                        chunks.append((cur, tot))
+                        cur, tot = [], 0 if full else k
+                    cur.append((ids[k:], n, futs[key]))
+                    tot += c
+                chunks.append((cur, tot))
+                for subs, ntok in chunks:
+                    self.q.put(([0] * ntok, None, (seqs[0][:k], subs)))  # len(item[0]) = the step's token count
                 answers = {key: shape(questions[key], futs[key].result()) for key in questions}
                 return answers, sum(len(ids) for ids, _ in enc.values())
         for k, (ids, n) in enc.items():
