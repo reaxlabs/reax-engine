@@ -58,6 +58,8 @@ class EngineBackend:
         self.eng = PplxEngine(a.model, linear_mode=a.linear, compile=a.compile, fp8_skip=tuple(x for x in a.fp8_skip.split(",") if x),
                               gva_native=a.gva, nvfp4_groups=tuple(g for g in a.nvfp4.split(",") if g), nvfp4_scales=a.nvfp4_scales or None)
         self.budget = a.budget
+        self.shared = a.shared_state == "1"  # encode a request's common prefix (system + state) once, see forward_groups
+        self.shared_min = a.shared_min
         self.max_wait = a.max_wait_ms / 1000
         a_warm_steps = a.warm_steps
         self.q: queue.Queue = queue.Queue()
@@ -100,6 +102,23 @@ class EngineBackend:
                 self.q.put(([1] * L, rng.randint(2, 12), f))
             for f in fs:
                 f.result()
+        if self.shared:  # the suffix-path kernels (conv/DeltaNet/attention on short continuation sequences) too
+            for _ in range(max(40, a_warm_steps // 2)):
+                items, tot = [], 0
+                for _ in range(rng.choice([1, 2, 3, 4, 6, 8, 12])):
+                    P = int(min(MAX_TOKENS - 600, max(64, rng.lognormvariate(6.8, 0.8))))
+                    subs = [([1] * int(max(8, rng.lognormvariate(4.5, 0.7))), rng.randint(2, 12), Future())
+                            for _ in range(rng.choice([1, 2, 3, 5, 8, 12]))]
+                    n = P + sum(len(x[0]) for x in subs)
+                    if items and tot + n > self.budget:
+                        break
+                    items.append(([0] * n, None, ([1] * P, subs)))
+                    tot += n
+                for it in items:
+                    self.q.put(it)
+                for it in items:
+                    for x in it[2][1]:
+                        x[2].result()
         print(f"warm-up done in {time.time() - t0:.0f}s ({self.steps} steps)", flush=True)
 
     def _loop(self):
@@ -119,6 +138,9 @@ class EngineBackend:
                     break
                 batch.append(item)
                 n += len(item[0])
+            if self.shared:
+                self._run_groups(batch)
+                continue
             try:
                 ids = torch.tensor([t for b in batch for t in b[0]], device="cuda")
                 logits = self.eng.forward(ids, [len(b[0]) for b in batch])
@@ -132,11 +154,51 @@ class EngineBackend:
             self.steps += 1
             self.decisions += len(batch)
 
+    def _run_groups(self, batch):
+        """shared-state step: queue items are (ids, n, fut) single decisions or (tokens, None, [(prefix, [(suffix, n, fut)...])])
+        request groups whose questions share a token prefix (see PplxEngine.forward_groups)."""
+        groups, counts, futs = [], [], []
+        for b in batch:
+            if b[1] is None:
+                prefix, subs = b[2]
+                groups.append((prefix, [x[0] for x in subs]))
+                counts += [x[1] for x in subs]
+                futs += [x[2] for x in subs]
+            else:
+                groups.append((b[0], []))
+                counts.append(b[1])
+                futs.append(b[2])
+        try:
+            probs = self.eng.probs(self.eng.forward_groups(groups), counts)
+            for f, p in zip(futs, probs):
+                f.set_result(p)
+        except Exception as e:  # noqa: BLE001
+            for f in futs:
+                if not f.done():
+                    f.set_exception(e)
+        self.steps += 1
+        self.decisions += len(futs)
+
     def decide(self, state, questions):
         enc = {k: self.pr.ids(state, q) for k, q in questions.items()}
         if any(len(ids) > MAX_TOKENS for ids, _ in enc.values()):
             raise Capacity(f"maximum context length exceeded: a question branch is longer than {MAX_TOKENS} tokens")
         futs = {}
+        if self.shared and len(enc) >= 2:
+            seqs = [ids for ids, _ in enc.values()]
+            m = min(map(len, seqs)) - 1  # every suffix keeps >= 1 token
+            k = 0
+            while k < m and all(x[k] == seqs[0][k] for x in seqs):
+                k += 1
+            if k >= self.shared_min:
+                subs = []
+                for key, (ids, n) in enc.items():
+                    futs[key] = Future()
+                    subs.append((ids[k:], n, futs[key]))
+                ntok = k + sum(len(x[0]) for x in subs)
+                self.q.put(([0] * ntok, None, (seqs[0][:k], subs)))  # len(item[0]) = the step's token count
+                answers = {key: shape(questions[key], futs[key].result()) for key in questions}
+                return answers, sum(len(ids) for ids, _ in enc.values())
         for k, (ids, n) in enc.items():
             futs[k] = Future()
             self.q.put((ids, n, futs[k]))
@@ -219,6 +281,9 @@ def main():
     ap.add_argument("--budget", type=int, default=16384)
     ap.add_argument("--max-wait-ms", type=float, default=0.0, help="extra wait to fill a step (0 = take what is queued)")
     ap.add_argument("--port", type=int, default=8741)
+    ap.add_argument("--shared-state", default="0", help="1: questions of one request share the encoded state prefix (approximation: "
+                    "state tokens do not attend to the question); measured separately, see RESULTS.md")
+    ap.add_argument("--shared-min", type=int, default=64, help="minimum common-prefix tokens for a shared-state group")
     ap.add_argument("--warm-steps", type=int, default=200, help="randomised warm-up steps before /health is ready")
     a = ap.parse_args()
     backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)

@@ -566,7 +566,7 @@ class PplxEngine:
 
     def _attend(self, q, k, v, cu_q, cu_k, max_q, max_k, lens_q, lens_k, causal=False):
         """q [Tq, H, D], k/v [Tk, KV, D] -> [Tq, H, D], noncausal within each sequence (causal=True: causal, only with
-        cu_q == cu_k)."""
+        cu_q == cu_k, or bottom-right aligned when the queries are the last rows of each key sequence)."""
         if self._varlen is not None:
             return self._varlen(q.contiguous(), k.contiguous(), v.contiguous(), cu_q, cu_k, max_q, max_k,
                                 scale=self.hd ** -0.5, window_size=(-1, 0) if causal else (-1, -1), enable_gqa=True)
@@ -594,7 +594,7 @@ class PplxEngine:
         return torch.cat(outs, 0)
 
     # ------------------------------------------------------------ blocks
-    def _deltanet(self, L, x, cu, xq=None, cu_cpu=None):
+    def _deltanet(self, L, x, cu, xq=None, cu_cpu=None, sh=None):
         T = x.shape[0]
         from fla.modules.conv.causal_conv1d import causal_conv1d
         from fla.ops.gated_delta_rule import chunk_gated_delta_rule
@@ -603,6 +603,8 @@ class PplxEngine:
         conv_dim = 2 * self.key_dim + self.value_dim
         mixed, z = qkvz[:, :conv_dim], qkvz[:, conv_dim:]
         parts = None
+        if sh is not None:  # shared-state step: prefixes first, then suffixes continue from their prefix (conv tail + state)
+            return self._deltanet_shared(L, mixed, z, ba, sh, T)
         if self.conv_impl == "fla" and T < self.split_conv_min_T:  # latency path: fewer launches
             mixed, _ = causal_conv1d(mixed[None].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=cu,
                                      cu_seqlens_cpu=cu_cpu)
@@ -638,6 +640,42 @@ class PplxEngine:
             k = k.repeat_interleave(r, dim=2)
         o, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta, initial_state=None, output_final_state=False,
                                       use_qk_l2norm_in_kernel=True, cu_seqlens=cu, cu_seqlens_cpu=cu_cpu)
+        return self._deltanet_out(L, o, z, T)
+
+    def _deltanet_shared(self, L, mixed, z, ba, sh, T):
+        from fla.modules.conv.causal_conv1d import causal_conv1d
+        from fla.ops.gated_delta_rule import chunk_gated_delta_rule
+        Tp = sh.Tp
+        yp, _ = causal_conv1d(mixed[None, :Tp].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=sh.cu_p64)
+        ys = None
+        if sh.Ts:
+            # each suffix is preceded by the last (kernel-1) pre-conv rows of its prefix; their outputs are dropped
+            ye, _ = causal_conv1d(mixed[sh.ext_idx][None], weight=L["conv_w"], activation="silu", cu_seqlens=sh.cu_ext64)
+            ys = ye[0][sh.keep_idx]
+        mixed = yp[0] if ys is None else torch.cat([yp[0], ys], 0)
+        q, k, v = torch.split(mixed, [self.key_dim, self.key_dim, self.value_dim], dim=-1)
+        q = q.reshape(1, T, self.lnk, self.lk)
+        k = k.reshape(1, T, self.lnk, self.lk)
+        v = v.reshape(1, T, self.lnv, self.lv)
+        beta, g = K.dn_gates(ba, L["A_neg"], L["dt_bias"], self.lnv)
+        beta, g = beta[None], g[None]
+        if not self.gva_native:
+            r = self.lnv // self.lnk
+            q = q.repeat_interleave(r, dim=2)
+            k = k.repeat_interleave(r, dim=2)
+        sl = slice(0, Tp)
+        op, st = chunk_gated_delta_rule(q[:, sl].contiguous(), k[:, sl].contiguous(), v[:, sl].contiguous(), g=g[:, sl].contiguous(),
+                                        beta=beta[:, sl].contiguous(), initial_state=None, output_final_state=bool(sh.Ts),
+                                        use_qk_l2norm_in_kernel=True, cu_seqlens=sh.cu_p64)
+        if sh.Ts:
+            sl = slice(Tp, T)
+            os_, _ = chunk_gated_delta_rule(q[:, sl].contiguous(), k[:, sl].contiguous(), v[:, sl].contiguous(), g=g[:, sl].contiguous(),
+                                            beta=beta[:, sl].contiguous(), initial_state=st[sh.s_par], output_final_state=False,
+                                            use_qk_l2norm_in_kernel=True, cu_seqlens=sh.cu_s64)
+            op = torch.cat([op, os_], 1)
+        return self._deltanet_out(L, op, z, T)
+
+    def _deltanet_out(self, L, o, z, T):
         if self.nv_fuse_gn and L["out"].mode == "nvfp4" and L["out"].x_amax is not None:
             gq, gs = fp4_triton.gated_norm_nvfp4_static(o, z, L["gnorm"], self.eps, L["out"].xg, T)
             if self.nv_check:
@@ -657,10 +695,12 @@ class PplxEngine:
         xr, xp = x[..., :r], x[..., r:]
         return torch.cat([xr * cos + rotate_half(xr) * sin, xp], dim=-1)
 
-    def _attention(self, L, x, pos_cs, cu, max_len, lens, last_idx=None, xq=None):
+    def _attention(self, L, x, pos_cs, cu, max_len, lens, last_idx=None, xq=None, sh=None):
         cos, sin = pos_cs
         T = x.shape[0]
         nq = self.nh * self.hd * 2
+        if sh is not None:
+            return self._attention_shared(L, x, cos, sin, last_idx, xq, sh, T, nq)
         if last_idx is None:
             qkv = L["qkv"](x, xq)
             qg, k, v = qkv[:, :nq], qkv[:, nq:nq + self.nkv * self.hd], qkv[:, nq + self.nkv * self.hd:]
@@ -680,6 +720,37 @@ class PplxEngine:
             n = last_idx.shape[0]
             cu_q = torch.arange(n + 1, device=x.device, dtype=cu.dtype)
             o = self._attend(q, k, v, cu_q, cu, 1, max_len, list(range(n + 1)), lens)
+        if xq is not None and L["o"].mode == "fp8":
+            return L["o"](None, K.gate_mul_q(o.reshape(o.shape[0], -1), gate))
+        return L["o"](K.gate_mul(o.reshape(o.shape[0], -1), gate))
+
+    def _attention_shared(self, L, x, cos, sin, last_idx, xq, sh, T, nq):
+        """Shared-state attention: prefix tokens attend (noncausally) to their prefix only; suffix tokens attend to their
+        prefix + their own suffix; last layer: Q only for the readout rows, keys = prefix (+ suffix) of that decision."""
+        if last_idx is None:
+            qkv = L["qkv"](x, xq)
+            qg, k, v = qkv[:, :nq], qkv[:, nq:nq + self.nkv * self.hd], qkv[:, nq + self.nkv * self.hd:]
+            qc, sc = cos, sin
+        else:
+            qg = L["q_only"](x[last_idx], None if xq is None else (xq[0][last_idx], xq[1][last_idx]))
+            kv = L["kv_only"](x, xq)
+            k, v = kv[:, : self.nkv * self.hd], kv[:, self.nkv * self.hd:]
+            qc, sc = cos[last_idx], sin[last_idx]
+        qg = qg.view(qg.shape[0], self.nh, 2 * self.hd)
+        q, gate = qg[..., : self.hd], qg[..., self.hd:].reshape(qg.shape[0], -1)
+        k = K.norm_rope(k.view(T, self.nkv, self.hd), L["k_norm"], cos[:, None], sin[:, None], self.eps, self.rot)
+        v = v.view(T, self.nkv, self.hd)
+        q = K.norm_rope(q, L["q_norm"], qc[:, None], sc[:, None], self.eps, self.rot)
+        if last_idx is None:
+            Tp = sh.Tp
+            o = self._attend(q[:Tp], k[:Tp], v[:Tp], sh.cu_p, sh.cu_p, sh.max_p, sh.max_p, sh.offs_p, sh.offs_p,
+                            causal=self.causal)
+            if sh.Ts:
+                os_ = self._attend(q[Tp:], k[sh.kx_idx], v[sh.kx_idx], sh.cu_s, sh.cu_kx, sh.max_s, sh.max_kx, sh.offs_s, sh.offs_kx,
+                                    causal=self.causal)
+                o = torch.cat([o, os_], 0)
+        else:
+            o = self._attend(q, k[sh.kr_idx], v[sh.kr_idx], sh.cu_r, sh.cu_kr, 1, sh.max_kr, sh.offs_r, sh.offs_kr)
         if xq is not None and L["o"].mode == "fp8":
             return L["o"](None, K.gate_mul_q(o.reshape(o.shape[0], -1), gate))
         return L["o"](K.gate_mul(o.reshape(o.shape[0], -1), gate))
@@ -781,7 +852,7 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
 
-    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None):
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None, sh=None):
         """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
         inside a CUDA graph with static `ids` / `last_idx`). prune=False computes the last layer for every row (needed when
         the sequences are right-padded: the pruned last-layer attention assumes the read row is the last key)."""
@@ -805,11 +876,11 @@ class PplxEngine:
             yield
             last = i == self.n_layers - 1
             if L["type"] == "linear_attention":
-                d = self._deltanet(L, x, cu64, xq, cu_cpu)
+                d = self._deltanet(L, x, cu64, xq, cu_cpu, sh=sh)
             elif not (last and prune):
-                d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq)
+                d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq, sh=sh)
             else:
-                d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq)
+                d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq, sh=sh)
                 h = h[last_idx]
             if self.nv_fuse and self._nv_ok(L["gu"], L["down"]):
                 if self.nv_check:
@@ -850,6 +921,72 @@ class PplxEngine:
         if self.readout.dtype == torch.float32:  # d3 runtime: hidden.float() @ readout.T in fp32
             return x.float() @ self.readout.T
         return F.linear(x, self.readout).float()
+
+    @torch.inference_mode()
+    def forward_groups(self, groups):
+        """Shared-state forward. groups: list of (prefix_ids, [suffix_ids, ...]). A group without suffixes is one ordinary
+        decision (readout on its last token, exactly the normal noncausal semantics). A group with suffixes is one request
+        whose questions share the token prefix (system prompt + state): the prefix is encoded ONCE, attending only to
+        itself; every suffix (question + options) attends to its prefix and itself, and DeltaNet continues from the
+        prefix's recurrent and conv state. Returns readout logits [n_decisions, 255] in group/suffix order."""
+        import numpy as np
+        assert self.prune_last
+        dev = self.device
+        kc = 3  # conv kernel - 1
+        p_lens = [len(p) for p, _ in groups]
+        cu_p = np.concatenate([[0], np.cumsum(p_lens)]).astype(np.int64)
+        Tp = int(cu_p[-1])
+        s_lens, s_par = [], []
+        for gi, (_, ss) in enumerate(groups):
+            for sids in ss:
+                s_lens.append(len(sids))
+                s_par.append(gi)
+        cu_s = np.concatenate([[0], np.cumsum(s_lens)]).astype(np.int64) if s_lens else np.zeros(1, np.int64)
+        Ts = int(cu_s[-1])
+        pos = [np.arange(n) for n in p_lens] + [p_lens[g] + np.arange(n) for g, n in zip(s_par, s_lens)]
+        ext, keep, kx, kx_lens, eoff = [], [], [], [], 0
+        for j, (g, n) in enumerate(zip(s_par, s_lens)):
+            a = Tp + cu_s[j]
+            assert p_lens[g] >= kc
+            ext.append(np.concatenate([np.arange(cu_p[g + 1] - kc, cu_p[g + 1]), np.arange(a, a + n)]))
+            keep.append(eoff + kc + np.arange(n))
+            eoff += n + kc
+            kx.append(np.concatenate([np.arange(cu_p[g], cu_p[g + 1]), np.arange(a, a + n)]))
+            kx_lens.append(p_lens[g] + n)
+        read, kr, kr_lens, j = [], [], [], 0
+        for gi, (_, ss) in enumerate(groups):
+            if not ss:
+                read.append(cu_p[gi + 1] - 1)
+                kr.append(np.arange(cu_p[gi], cu_p[gi + 1]))
+                kr_lens.append(p_lens[gi])
+            for _ in ss:
+                read.append(Tp + cu_s[j + 1] - 1)
+                kr.append(kx[j])
+                kr_lens.append(kx_lens[j])
+                j += 1
+        T_ = lambda a, dt=torch.int64: torch.from_numpy(np.ascontiguousarray(a, dtype=np.int64)).to(dev, non_blocking=True).to(dt)
+        cum = lambda ls: np.concatenate([[0], np.cumsum(ls)]).astype(np.int64)
+        from types import SimpleNamespace
+        sh = SimpleNamespace(Tp=Tp, Ts=Ts, cu_p=T_(cu_p, torch.int32), cu_p64=T_(cu_p), max_p=max(p_lens), offs_p=cu_p.tolist())
+        if Ts:
+            cu_kx = cum(kx_lens)
+            sh.cu_s, sh.cu_s64, sh.max_s, sh.offs_s = T_(cu_s, torch.int32), T_(cu_s), max(s_lens), cu_s.tolist()
+            sh.s_par = T_(s_par)
+            sh.ext_idx, sh.keep_idx = T_(np.concatenate(ext)), T_(np.concatenate(keep))
+            sh.cu_ext64 = T_(cum([n + kc for n in s_lens]))
+            sh.kx_idx, sh.cu_kx, sh.max_kx, sh.offs_kx = T_(np.concatenate(kx)), T_(cu_kx, torch.int32), max(kx_lens), cu_kx.tolist()
+        cu_kr = cum(kr_lens)
+        n = len(read)
+        sh.kr_idx, sh.cu_kr, sh.max_kr, sh.offs_kr = T_(np.concatenate(kr)), T_(cu_kr, torch.int32), max(kr_lens), cu_kr.tolist()
+        sh.cu_r, sh.offs_r = torch.arange(n + 1, device=dev, dtype=torch.int32), list(range(n + 1))
+        ids = T_(np.concatenate([np.asarray(p, np.int64) for p, _ in groups] + [np.asarray(s, np.int64) for _, ss in groups for s in ss]))
+        posf = torch.from_numpy(np.concatenate(pos).astype(np.float32)).to(dev)
+        freqs = posf[:, None] * self.inv_freq[None]
+        emb = torch.cat([freqs, freqs], -1)
+        cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
+        last_idx = T_(read)
+        gen = self._core_gen(ids, None, None, None, None, last_idx, cos, sin, None, sh=sh)
+        return self._drive([gen], [None])[0]
 
     def probs(self, logits, counts, temperature=None):
         t = self.temperature if temperature is None else temperature
