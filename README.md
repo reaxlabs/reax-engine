@@ -1,39 +1,55 @@
 # REAX Engine
 
-A prefill-only inference engine for **decision models**: models that answer a structured question about a state with
-one forward pass and a readout over the answer options (no token generation). The first supported model is
-[`perplexity-ai/pplx-decider-v1.1-27b`](https://huggingface.co/perplexity-ai/pplx-decider-v1.1-27b) (Qwen3.8-27B hybrid:
-48 Gated-DeltaNet layers + 16 noncausal full-attention layers, 255-way readout), which stock vLLM/SGLang/TensorRT-LLM
-cannot serve because its full-attention layers are noncausal.
+An open-source (Apache-2.0) **inference engine for decision models**.
 
-**Result (one RTX PRO 6000 Blackwell, same GPU and same evaluation harness for both):** about **3.1x** the decisions/s of the
-model's reference server on Decision-Index-style traffic and **2.6x** on the JevBench public set, single-request latency
-1.4x lower, with the same benchmark scores within measurement noise. Details and method: RESULTS.md.
+A decision model answers a structured question (choice, yes/no, score) about a state with **one forward pass and a readout over
+the answer options** at the last prompt position: probabilities = softmax(option logits / T). There is no token generation.
+The REAX Engine is built for exactly that workload: prefill-only, packed batches, readout of a few option logits, a decision API.
 
-## How
-- Packed variable-length batches (no padding): fla varlen kernels for the DeltaNet layers, varlen noncausal flash attention.
-- FP8 W8A8 GEMMs (per-channel weights, per-token activations) with the activation quantisation fused into the
-  preceding norm/activation kernels; fused projections; torch.compile + Triton fusions for all elementwise work.
-- Last-layer pruning (only the readout position needs the final layer's attention/MLP outputs).
-- Continuous-batching HTTP server (`/v1/systemone`), compatible with the reference server's request/answer format.
+**Is "inference engine" the right word?** Yes, in the precise sense: it loads trained model weights and runs their forward pass to
+produce predictions, with its own kernels, batching, scheduling and server. It is a *specialised* inference engine. It is **not** a
+general LLM serving engine: no text generation, no chat/completions API, no KV cache across turns, no speculative decoding.
+For three Gemma-4 models it delegates the forward pass to vLLM (marked "vLLM-backed" below) and adds the decision prompt,
+readout, calibration, API and evaluation; for those models the REAX part is the decision layer, not the kernels.
 
-## Models
-One registry, backend API and evaluation harness for several decision models: pplx-decider and d3 (native), Quyet, Rune and Blink
-(vLLM-backed readout, not native kernels), Plumb-4B (native) and the CPU GGUF models. See `docs/MODELS.md`, `python -m engine.registry`,
-`bench/README.md`.
+## Models (one registry, one server, one evaluation harness)
+`python -m engine.registry` prints the table; details and every measurement: [docs/MODELS.md](docs/MODELS.md).
 
-`engine/serve.py` is the one server for all of them (`/internal/v1/decide`, `/v1/systemone`, `/health`):
+| model | kind | speed vs the model's reference server (same GPU, same harness) | answers vs reference |
+|---|---|---|---|
+| Plumb-4B (s1-fast) | native | 1.43-1.47x (`exact` mode, SN92 engine-competition scorer, c16) | bit-identical |
+| Perplexity Decider v1.1 27B | native, FP8 | 2.62x (P300, c32); 3.1x Decision-Index traffic (RESULTS.md) | 99.0 % top-1, score within noise |
+| d3 (vllm-sr/d3) | native, FP8 | 2.54x (P300, c32) | 100 % top-1 on P300, 99.4 % on DI-1000 |
+| Quyet-1.0-Large | vLLM-backed, FP8 + FP8 KV | 3.43x (P300, c32) | 99.0 % top-1, score within noise |
+| Rune 26B-A4B | vLLM-backed | 1.0x (`deterministic` preset) | bit-identical |
+| Blink v0.3 26B-A4B | vLLM-backed, batch-invariant | 0.70x of stock vLLM (the price of batch invariance) | - |
+| Gutsy 0.8B, Plumb-4B Q8 (GGUF) | CPU (llama.cpp) | 1.0x | bit-identical |
+| s1-llm-auto-router | N-head classifier (onnxruntime, CPU) | equivalent execution mode | see docs |
+
+Measured 16 Oct 2026 on one NVIDIA RTX PRO 6000 Blackwell (96 GB) unless stated; P300 = the 300-item public JevBench set,
+DI-1000 = a fixed 1,000-request Decision Index sample. Ratios at high concurrency compare our batching server with each model's
+own (often serial) reference server; they are serving-system gains, not pure kernel gains. Model weights are not part of this
+repository; each model keeps its own licence (all listed models: Apache-2.0, the router: MIT).
+
+## One server
+`engine/serve.py --model <id>` serves every registry model with the same API:
+- `POST /v1/systemone` — state + one or more questions → answers (the decision-model API).
+- `POST /internal/v1/decide` — the REAX subnet runtime contract (TCP or a unix socket via `RUNTIME_UDS`).
+- `POST /v1/classify` — classifier-heads models only (per-head labels + probabilities).
+- `GET /health` — 200 after warm-up.
 
 ```bash
 S1M_INTERNAL_TOKEN=secret python engine/serve.py --model plumb-4b --model-dir ./plumb-4b       # or: python -m engine.serve ...
 RUNTIME_ALLOW_NO_AUTH=1 python -m engine.serve --model quyet-1.0-large --model-dir ./quyet --port 8741 --opt preset=fp8-kv
 ```
-`--model` takes a registry id or alias, `--opt key=value` passes backend options, `$RUNTIME_UDS` serves on a unix socket.
-The token header (`X-S1M-Internal-Token`) is required on both routes unless `RUNTIME_ALLOW_NO_AUTH=1`.
-The legacy `engine/server.py` below serves only pplx-decider.
+`--model` takes a registry id or alias, `--opt key=value` passes backend options. The token header (`X-S1M-Internal-Token`) is
+required unless `RUNTIME_ALLOW_NO_AUTH=1`. The legacy `engine/server.py` serves only pplx-decider.
+
+Images: `docker/s1-fast` (Plumb-4B, the SN92 engine-competition reference), `docker/qwen35` (pplx, d3), `docker/vllm-readout`
+(Quyet, Rune, Blink), `docker/gguf-cpu`.
 
 ## Model types
-- **Readout decision models** (everything above): the question is part of the prompt, the answer is a softmax over the answer-option
+- **Readout decision models** (all models above except the router): the question is part of the prompt, the answer is a softmax over the answer-option
   logits at the last prompt position. The engine's speed-ups (packed batches, FP8, fused kernels, vLLM or llama.cpp execution)
   apply to these.
 - **Classifier-heads models** (`model_kind="classifier_heads"`, first: `s1-llm-auto-router`): an encoder with N fixed heads that
@@ -41,13 +57,26 @@ The legacy `engine/server.py` below serves only pplx-decider.
   `POST /v1/classify`). This is an equivalent execution mode of the model's own path (bit-identical outputs, same latency), not a
   faster one: the engine contributes the registry, server contract and evaluation harness. See `docs/models/s1-llm-auto-router.md`.
 
-## Quick start
+## Plumb-4B and the REAX Engine competition
+The SN92 Engine competition measures miner engines for Plumb-4B against a reference engine on the same GPU. The reference is this
+engine in `exact` mode: the same answers bit for bit as the original runtime, deterministic across process starts, ~1.45x faster.
+How it works and what did not pass the gates: [docs/PLUMB.md](docs/PLUMB.md).
+
+## How (native models)
+- Packed variable-length batches (no padding): fla varlen kernels for the Gated-DeltaNet layers, varlen flash attention
+  (noncausal for pplx/d3, causal for Plumb).
+- FP8 W8A8 GEMMs with the activation quantisation fused into the preceding norm/activation kernels; fused projections;
+  torch.compile + Triton fusions (pplx, d3). Plumb `exact` mode instead replays the reference's op sequence in per-bucket CUDA
+  graphs on several streams.
+- Last-layer pruning: only the readout position needs the final layer's attention/MLP.
+- Continuous batching: one GPU scheduler thread, tokenisation off the GPU thread.
+
+## Quick start (Perplexity Decider, FP8)
 ```bash
 MODEL_DIR=./model bash tools/setup.sh
-python engine/server.py --model ./model --backend engine --linear fp8 --compile 1 --gva 1 --port 8741
+RUNTIME_ALLOW_NO_AUTH=1 python -m engine.serve --model pplx-decider-v1.1-27b --model-dir ./model --port 8741 --opt linear=fp8
 curl -s localhost:8741/v1/systemone -H 'content-type: application/json' -d '{"model":"pplx","state":"Order #123 arrived broken.",
   "questions":{"team":{"type":"choice","instructions":"Which team handles this?","criteria":{"billing":"refunds","support":"technical issues","sales":"buying"}}}}'
 ```
-An experimental calibrated NVFP4 (4-bit) mode reaches ~21.8 decisions/s on the same GPU at the same benchmark scores
-within noise (RESULTS.md). See DEPLOY.md for hardware, memory and operational notes. Validated on RTX PRO 6000 Blackwell (sm_120); also measured
-on H100, H200, B200 and RTX 5090 (32 GB cards: `CIE_LAZY_LOAD=1`).
+Evaluate any model against its reference: `bench/README.md`. Hardware and memory notes: DEPLOY.md. Earlier pplx results and the
+experimental calibrated NVFP4 mode: RESULTS.md.
