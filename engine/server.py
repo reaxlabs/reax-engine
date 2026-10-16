@@ -132,7 +132,7 @@ class EngineBackend:
                 for _ in range(rng.choice([1, 2, 3, 4, 6, 8, 12])):
                     P = int(min(MAX_TOKENS - 600, max(64, rng.lognormvariate(6.8, 0.8))))
                     subs = [([1] * int(max(8, rng.lognormvariate(4.5, 0.7))), rng.randint(2, 12), Future())
-                            for _ in range(rng.choice([1, 2, 3, 5, 8, 12]))]
+                            for _ in range(rng.choice([1, 2, 3, 5, 8, 12, 32, 64]))]
                     n = (P * len(subs) if self.eng.shared_until < self.eng.n_layers else P) + sum(len(x[0]) for x in subs)
                     if tot + n > self.budget:
                         break
