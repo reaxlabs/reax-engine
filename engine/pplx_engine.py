@@ -604,7 +604,7 @@ class PplxEngine:
         mixed, z = qkvz[:, :conv_dim], qkvz[:, conv_dim:]
         parts = None
         if sh is not None:  # shared-state step: prefixes first, then suffixes continue from their prefix (conv tail + state)
-            return self._deltanet_shared(L, mixed, z, ba, sh, T)
+            return self._deltanet_shared(L, mixed, z, ba, sh, T, xq)
         if self.conv_impl == "fla" and T < self.split_conv_min_T:  # latency path: fewer launches
             mixed, _ = causal_conv1d(mixed[None].contiguous(), weight=L["conv_w"], activation="silu", cu_seqlens=cu,
                                      cu_seqlens_cpu=cu_cpu)
@@ -640,9 +640,9 @@ class PplxEngine:
             k = k.repeat_interleave(r, dim=2)
         o, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta, initial_state=None, output_final_state=False,
                                       use_qk_l2norm_in_kernel=True, cu_seqlens=cu, cu_seqlens_cpu=cu_cpu)
-        return self._deltanet_out(L, o, z, T)
+        return self._deltanet_out(L, o, z, T, xq)
 
-    def _deltanet_shared(self, L, mixed, z, ba, sh, T):
+    def _deltanet_shared(self, L, mixed, z, ba, sh, T, xq):
         from fla.modules.conv.causal_conv1d import causal_conv1d
         from fla.ops.gated_delta_rule import chunk_gated_delta_rule
         Tp = sh.Tp
@@ -673,9 +673,9 @@ class PplxEngine:
                                             beta=beta[:, sl].contiguous(), initial_state=st[sh.s_par], output_final_state=False,
                                             use_qk_l2norm_in_kernel=True, cu_seqlens=sh.cu_s64)
             op = torch.cat([op, os_], 1)
-        return self._deltanet_out(L, op, z, T)
+        return self._deltanet_out(L, op, z, T, xq)
 
-    def _deltanet_out(self, L, o, z, T):
+    def _deltanet_out(self, L, o, z, T, xq):
         if self.nv_fuse_gn and L["out"].mode == "nvfp4" and L["out"].x_amax is not None:
             gq, gs = fp4_triton.gated_norm_nvfp4_static(o, z, L["gnorm"], self.eps, L["out"].xg, T)
             if self.nv_check:
@@ -914,6 +914,12 @@ class PplxEngine:
             else:
                 h, x = K.add_rms(h, d, self.norm_w if last else self.layers[i + 1]["in_norm"], self.eps)
                 xq = None
+            if sh is not None and i + 1 == sh.until < self.n_layers:
+                # leave the shared layout: every decision becomes its full sequence (prefix rows + its suffix rows) for
+                # the remaining layers (state tokens attend to the question again); rms-normed rows gather exactly
+                h, x, xq = h[sh.g_idx], x[sh.g_idx], (None if xq is None or isinstance(xq, NV4) else (xq[0][sh.g_idx], xq[1][sh.g_idx]))
+                cu, cu64, offs, max_len, last_idx, (cos, sin) = sh.full
+                sh = None
             if self._trace is not None:  # debugging: residual stream of the last token of every decision after each layer
                 self._trace.append((h if h.shape[0] == last_idx.shape[0] else h[last_idx]).float().clone())
         if not prune:
@@ -923,7 +929,7 @@ class PplxEngine:
         return F.linear(x, self.readout).float()
 
     @torch.inference_mode()
-    def forward_groups(self, groups):
+    def forward_groups(self, groups, until=None):
         """Shared-state forward. groups: list of (prefix_ids, [suffix_ids, ...]). A group without suffixes is one ordinary
         decision (readout on its last token, exactly the normal noncausal semantics). A group with suffixes is one request
         whose questions share the token prefix (system prompt + state): the prefix is encoded ONCE, attending only to
@@ -964,7 +970,7 @@ class PplxEngine:
                 kr.append(kx[j])
                 kr_lens.append(kx_lens[j])
                 j += 1
-        T_ = lambda a, dt=torch.int64: torch.from_numpy(np.ascontiguousarray(a, dtype=np.int64)).to(dev, non_blocking=True).to(dt)
+        T_ = lambda a, dt=torch.int64: torch.from_numpy(np.ascontiguousarray(a, dtype=np.int64)).to(dev).to(dt)
         cum = lambda ls: np.concatenate([[0], np.cumsum(ls)]).astype(np.int64)
         from types import SimpleNamespace
         sh = SimpleNamespace(Tp=Tp, Ts=Ts, cu_p=T_(cu_p, torch.int32), cu_p64=T_(cu_p), max_p=max(p_lens), offs_p=cu_p.tolist())
@@ -985,6 +991,22 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         cos, sin = emb.cos().to(self.dtype), emb.sin().to(self.dtype)
         last_idx = T_(read)
+        sh.until = int(os.environ.get("PPLX_SHARED_UNTIL", str(self.n_layers))) if until is None else until
+        if sh.until < self.n_layers:  # metadata of the full layout used after layer `until - 1`
+            # same decision order as `read`
+            g_idx, lens, k = [], [], 0
+            for gi, (_, ss) in enumerate(groups):
+                if not ss:
+                    g_idx.append(np.arange(cu_p[gi], cu_p[gi + 1]))
+                    lens.append(p_lens[gi])
+                for _ in ss:
+                    g_idx.append(kx[k])
+                    lens.append(kx_lens[k])
+                    k += 1
+            sh.g_idx = T_(np.concatenate(g_idx))
+            offs = cum(lens)
+            cuf = T_(offs, torch.int32)
+            sh.full = (cuf, cuf.long(), offs.tolist(), max(lens), cuf.long()[1:] - 1, self._rope_tables(lens, dev))
         gen = self._core_gen(ids, None, None, None, None, last_idx, cos, sin, None, sh=sh)
         return self._drive([gen], [None])[0]
 

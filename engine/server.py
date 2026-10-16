@@ -14,7 +14,7 @@ Usage: server.py --model ./model --backend engine [--linear fp8 --compile 1 --bu
 """
 from __future__ import annotations
 
-import argparse, json, queue, sys, threading, time
+import argparse, json, os, queue, sys, threading, time
 from concurrent.futures import Future
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -64,6 +64,7 @@ class EngineBackend:
         a_warm_steps = a.warm_steps
         self.q: queue.Queue = queue.Queue()
         self.steps = self.decisions = 0
+        self.idle_s, self.step_tokens = 0.0, 0
         threading.Thread(target=self._loop, daemon=True).start()
         # Warm-up: trigger every torch.compile specialization / Triton autotune BEFORE serving (otherwise the first
         # requests of each new batch shape stall the GPU loop for seconds). Covers 1..many sequences per step, short
@@ -109,7 +110,7 @@ class EngineBackend:
                     P = int(min(MAX_TOKENS - 600, max(64, rng.lognormvariate(6.8, 0.8))))
                     subs = [([1] * int(max(8, rng.lognormvariate(4.5, 0.7))), rng.randint(2, 12), Future())
                             for _ in range(rng.choice([1, 2, 3, 5, 8, 12]))]
-                    n = P + sum(len(x[0]) for x in subs)
+                    n = (P * len(subs) if int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64 else P) + sum(len(x[0]) for x in subs)
                     if items and tot + n > self.budget:
                         break
                     items.append(([0] * n, None, ([1] * P, subs)))
@@ -124,7 +125,9 @@ class EngineBackend:
     def _loop(self):
         carry = None
         while True:
+            t_idle = time.perf_counter()
             batch = [carry] if carry else [self.q.get()]
+            self.idle_s += time.perf_counter() - t_idle
             carry = None
             n = len(batch[0][0])
             deadline = time.perf_counter() + self.max_wait
@@ -138,6 +141,7 @@ class EngineBackend:
                     break
                 batch.append(item)
                 n += len(item[0])
+            self.step_tokens += n
             if self.shared:
                 self._run_groups(batch)
                 continue
@@ -195,7 +199,10 @@ class EngineBackend:
                 for key, (ids, n) in enc.items():
                     futs[key] = Future()
                     subs.append((ids[k:], n, futs[key]))
-                ntok = k + sum(len(x[0]) for x in subs)
+                # partial sharing (PPLX_SHARED_UNTIL < layers): the step expands to full sequences after the switch layer,
+                # so the full token count is what the step budget has to bound
+                full = int(os.environ.get("PPLX_SHARED_UNTIL", "64")) < 64
+                ntok = sum(len(ids) for ids, _ in enc.values()) if full else k + sum(len(x[0]) for x in subs)
                 self.q.put(([0] * ntok, None, (seqs[0][:k], subs)))  # len(item[0]) = the step's token count
                 answers = {key: shape(questions[key], futs[key].result()) for key in questions}
                 return answers, sum(len(ids) for ids, _ in enc.values())
@@ -247,7 +254,8 @@ def handler(backend):
 
         def do_GET(self):
             if self.path == "/health":
-                return self._send(200, {"status": "ready", "model": NAME, "steps": backend.steps, "decisions": backend.decisions})
+                return self._send(200, {"status": "ready", "model": NAME, "steps": backend.steps, "decisions": backend.decisions,
+                                        "idle_s": round(getattr(backend, "idle_s", 0.0), 3), "step_tokens": getattr(backend, "step_tokens", 0)})
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
