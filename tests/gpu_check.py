@@ -33,7 +33,7 @@ def dist(a, b):
 
 ref = JevK5(model_dir, graphs=os.environ.get("REF_GRAPHS", "0") == "1")
 refp = [list(ref.probabilities(r["state"], r["question"])[0].values()) for r in rows]
-kw = {k: (os.environ[v] == "1" if k == "exact" else os.environ[v]) for k, v in (("attn_impl", "ATTN"), ("conv_impl", "CONV"), ("gva_native", "PLUMB_GVA"), ("fuse", "FUSE"), ("exact", "EXACT")) if v in os.environ}
+kw = {k: (os.environ[v] == "1" if k == "exact" else os.environ[v]) for k, v in (("attn_impl", "ATTN"), ("conv_impl", "CONV"), ("gva_native", "PLUMB_GVA"), ("fuse", "FUSE"), ("exact", "EXACT"), ("linear_mode", "LINEAR")) if v in os.environ}
 be = PlumbBackend(model_dir, compile=os.environ.get("REAX_COMPILE", "1"), **kw)
 print("engine kw", kw, "compile", os.environ.get("REAX_COMPILE", "1"), flush=True)
 keep, encs = [], []
