@@ -10,6 +10,8 @@ Protocol (as the author's server + harness needs): POST /v1/systemone {model, st
 {model, answers{id: answer}, usage{input_tokens, output_tokens:0}}. Noul answers additionally carry
 probabilities {false, true}. A question branch > 8192 tokens -> HTTP 422 "maximum context length ..." (the author
 refuses those too; the marker makes the Decision Index kit count it as unsupported). GET /health.
+v1.2 checkpoints: usage also carries `sequences`; 422 bodies carry `code` (unsupported_images | context_length) and
+`fallback: "author"` so a router can send the request to the author path (see docs/models/pplx-decider-v1.2.md).
 Usage: server.py --model ./model --backend engine [--linear fp8 --compile 1 --budget 16384] --port 8741
 """
 from __future__ import annotations
@@ -28,7 +30,26 @@ NAME = "pplx-decider-v1.1-27b"
 
 
 class Capacity(Exception):
-    pass
+    def __init__(self, msg, code=None):
+        super().__init__(msg)
+        self.code = code  # v1.2 only: machine-readable reason in the 422 body
+
+
+def served_name(model, override=None):
+    """Response `model` of a v1.2 server: --served-name, else the HF id of the release (release manifest / config), else the dir name."""
+    if override:
+        return override
+    d = Path(model).resolve()
+    for fn in ("release_manifest.json", "release-manifest.json", "manifest.json", "config.json"):
+        try:
+            m = json.loads((d / fn).read_text())
+        except (OSError, ValueError):
+            continue
+        for k in ("hf_id", "hf_repo", "repo_id", "model_id", "_name_or_path"):
+            v = m.get(k) if isinstance(m, dict) else None
+            if isinstance(v, str) and v.strip() and not v.startswith(("/", ".")):
+                return v.rsplit("/", 1)[-1]
+    return d.name
 
 
 def validate(questions):
@@ -66,14 +87,20 @@ class EngineBackend:
                 raise SystemExit("--shared-state is a v1.1 approximation; v1.2 checkpoints share the state natively (joint format)")
             sys.path.insert(0, str(Path(a.model) / "source" / "src"))
             from transformers import AutoProcessor
-            from pplx_decider.protocol import Encoder, LengthError, RequestError
+            from pplx_decider.protocol import PROTOCOL, Encoder, LengthError, RequestError
+            joint = json.loads((Path(a.model) / "joint_config.json").read_text())
+            assert joint == PROTOCOL, f"joint_config.json does not match the author's PROTOCOL: {joint} != {PROTOCOL}"
             proc = AutoProcessor.from_pretrained(a.model)
             self.encoder = Encoder(proc, self.pr.codes)
             self.v12_errors = (LengthError, RequestError)
             self.v12_split = a.v12_split
+            self.v12_overlength = a.v12_overlength
+            self.linear = a.linear
+            self.served = served_name(a.model, a.served_name)
             self.max_length = a.max_length
             assert self.max_length <= self.budget, "--max-length must fit one step (--budget)"
-            print(f"v1.2 joint protocol: {a.v12_split} requests, max_length {self.max_length}", flush=True)
+            print(f"v1.2 joint protocol: {a.v12_split} requests, max_length {self.max_length}, overlength {a.v12_overlength}, "
+                  f"linear {a.linear}, served as {self.served}", flush=True)
         self.shared = a.shared_state == "1"  # encode a request's common prefix (system + state) once, see forward_groups
         self.shared_min = a.shared_min
         if a.shared_until is not None:
@@ -234,9 +261,15 @@ class EngineBackend:
         reqs = [{"state": state, "questions": questions}] if self.v12_split == "joint" else \
             [{"state": state, "questions": {k: q}} for k, q in questions.items()]
         try:
-            chunks = [c for r in reqs for c in self.encoder.plan(r, self.max_length)]
+            plans = [self.encoder.plan(r, self.max_length) for r in reqs]
+            chunks = [c for p in plans for c in p]
+            if self.v12_overlength == "reject" and any(len(p) > 1 for p in plans):
+                need = sum(self.encoder.encode(r).length for r, p in zip(reqs, plans) if len(p) > 1)
+                raise Capacity(f"maximum context length exceeded: request needs {need} tokens in one sequence, more than "
+                               f"--max-length {self.max_length} (it would be split into {len(chunks)} sequences; "
+                               f"--v12-overlength reject)", "context_length")
         except self.v12_errors[0] as e:
-            raise Capacity(f"maximum context length exceeded: {e}") from None
+            raise Capacity(f"maximum context length exceeded: {e}", "context_length") from None
         except self.v12_errors[1] as e:
             raise ValueError(str(e)) from None
         futs = []
@@ -248,7 +281,7 @@ class EngineBackend:
         for c, f in futs:
             for key, p in zip(c.keys, f.result()):
                 answers[key] = shape(questions[key], p)
-        return {k: answers[k] for k in questions}, sum(c.length for c in chunks)
+        return {k: answers[k] for k in questions}, sum(c.length for c in chunks), len(chunks)
 
     def _run_groups(self, batch):
         """shared-state step: queue items are (ids, n, fut) single decisions or (tokens, None, [(prefix, [(suffix, n, fut)...])])
@@ -357,8 +390,12 @@ def handler(backend):
 
         def do_GET(self):
             if self.path == "/health":
-                return self._send(200, {"status": "ready", "model": NAME, "steps": backend.steps, "decisions": backend.decisions,
-                                        "idle_s": round(getattr(backend, "idle_s", 0.0), 3), "step_tokens": getattr(backend, "step_tokens", 0)})
+                h = {"status": "ready", "model": NAME, "steps": backend.steps, "decisions": backend.decisions,
+                     "idle_s": round(getattr(backend, "idle_s", 0.0), 3), "step_tokens": getattr(backend, "step_tokens", 0)}
+                if getattr(backend, "v12", False):
+                    h.update(model=backend.served, served_name=backend.served, linear=backend.linear, v12=True,
+                             max_length=backend.max_length, v12_overlength=backend.v12_overlength, v12_split=backend.v12_split)
+                return self._send(200, h)
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
@@ -366,16 +403,21 @@ def handler(backend):
                 return self._send(404, {"error": "not found"})
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-                if body.get("images"):
-                    raise Capacity("images are not supported by this engine (text-only); use the author's pplx_decider")
-                if not getattr(backend, "v12", False):  # v1.2: the author's Encoder validates (1-255 options, 2-255 levels)
+                v12 = getattr(backend, "v12", False)
+                if v12 and body.get("images"):  # v1.1 keeps its text-only behaviour (images ignored), as on main
+                    raise Capacity("images are not supported by this engine (text-only); use the author's pplx_decider",
+                                   "unsupported_images")
+                if not v12:  # v1.2: the author's Encoder validates (1-255 options, 2-255 levels)
                     validate(body.get("questions"))
-                elif not isinstance(body.get("questions"), dict) or not body["questions"]:
-                    raise ValueError("questions must be a non-empty object")
-                answers, tokens = backend.decide(body.get("state"), body["questions"])
-                self._send(200, {"model": NAME, "answers": answers, "usage": {"input_tokens": tokens, "output_tokens": 0}})
+                elif "state" not in body or not isinstance(body.get("questions"), dict) or not body["questions"]:
+                    raise ValueError("A request needs 'state' and 'questions' (questions must be a non-empty object)")
+                answers, tokens, *seqs = backend.decide(body.get("state"), body["questions"])
+                usage = {"input_tokens": tokens, "output_tokens": 0}
+                if seqs:  # v1.2: number of sequences (author parity, types.py usage.sequences)
+                    usage["sequences"] = seqs[0]
+                self._send(200, {"model": backend.served if v12 else NAME, "answers": answers, "usage": usage})
             except Capacity as e:
-                self._send(422, {"error": str(e)})
+                self._send(422, {"error": str(e), **({"code": e.code, "fallback": "author"} if e.code else {})})
             except (ValueError, KeyError, json.JSONDecodeError) as e:
                 self._send(400, {"error": str(e)})
             except Exception as e:  # noqa: BLE001
@@ -405,13 +447,15 @@ def main():
                     "questions of the request (default: $PPLX_SHARED_MIXQ or 0)")
     ap.add_argument("--v12-split", choices=["joint", "single"], default="joint", help="v1.2 checkpoints: joint = one sequence "
                     "per request (author default); single = every question as its own request (v1.1 style)")
-    ap.add_argument("--max-length", type=int, default=8192, help="v1.2: per-sequence token limit; longer requests are split "
-                    "into question chunks by the author's Encoder.plan, a single over-long question -> 422")
+    ap.add_argument("--max-length", type=int, default=8192, help="v1.2: per-sequence token limit (a single over-long question -> 422)")
+    ap.add_argument("--v12-overlength", choices=["reject", "split"], default="reject", help="v1.2: a joint request needing more than "
+                    "--max-length tokens: reject = HTTP 422 context_length (a router sends it to the author path, which runs it as one "
+                    "sequence); split = answer it in question chunks by the author's Encoder.plan (questions of different chunks do not "
+                    "see each other; usage.sequences > 1)")
+    ap.add_argument("--served-name", default=None, help="v1.2: `model` in responses and /health (default: HF id from the checkpoint's "
+                    "release manifest/config, else the directory name)")
     ap.add_argument("--warm-steps", type=int, default=200, help="randomised warm-up steps before /health is ready")
     a = ap.parse_args()
-    global NAME
-    if (Path(a.model) / "joint_config.json").exists():
-        NAME = Path(a.model).resolve().name
     backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)
     class Srv(ThreadingHTTPServer):
         request_queue_size = 512
