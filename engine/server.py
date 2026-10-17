@@ -60,6 +60,13 @@ class EngineBackend:
         self.budget = a.budget
         self.shared = a.shared_state == "1"  # encode a request's common prefix (system + state) once, see forward_groups
         self.shared_min = a.shared_min
+        if a.shared_until is not None:
+            self.eng.shared_until = a.shared_until
+        if a.shared_mixq is not None:
+            self.eng.shared_mixq = a.shared_mixq == "1"
+        if self.shared:
+            print(f"shared-state mode: until layer {self.eng.shared_until} of {self.eng.n_layers}, "
+                  f"state rows see {'all questions' if self.eng.shared_mixq else 'the state only'} (approximation)", flush=True)
         self.max_wait = a.max_wait_ms / 1000
         a_warm_steps = a.warm_steps
         self.q: queue.Queue = queue.Queue()
@@ -324,6 +331,9 @@ def main():
     ap.add_argument("--shared-state", default="0", help="1: questions of one request share the encoded state prefix (approximation: "
                     "state tokens do not attend to the question); measured separately, see RESULTS.md")
     ap.add_argument("--shared-min", type=int, default=64, help="minimum common-prefix tokens for a shared-state group")
+    ap.add_argument("--shared-until", type=int, default=None, help="share layers [0, N) (default: $PPLX_SHARED_UNTIL or 16; 64 = all)")
+    ap.add_argument("--shared-mixq", default=None, help="1: in the shared attention layers the state rows attend to the state and all "
+                    "questions of the request (default: $PPLX_SHARED_MIXQ or 0)")
     ap.add_argument("--warm-steps", type=int, default=200, help="randomised warm-up steps before /health is ready")
     a = ap.parse_args()
     backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)

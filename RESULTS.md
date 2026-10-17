@@ -1,3 +1,36 @@
+# Results (17 Oct 2026): shared-state mode, 6.0x at equal quality
+
+Model: perplexity-ai/pplx-decider-v1.1-27b @ 6195aa55. GPU: 1x NVIDIA RTX PRO 6000 Blackwell Server Edition (96 GB, 600 W), RunPod,
+128 cores. Reference = the author's `DecisionModel` (bf16, SDPA) served serially, questions in chunks of 8 (`engine/server.py --backend ref`).
+Harness: the official owo runners (`run_di.py --workers 8 --limit 1000` = the DI-1000 sample, 1,000 requests / 5,129 decisions;
+`run_p300.py --workers 16`), paired bootstrap 95 % CIs vs the reference run on the same pod. Every run starts with fresh Triton /
+Inductor caches; reference and candidates were interleaved (5 reference runs: 5.242-5.281 dec/s, answers bit-identical across runs).
+Ratio = worst case: slowest candidate run / fastest reference run. Full DI-5k (5,000 requests / 25,509 decisions) quality on a second pod.
+
+| | dec/s DI-1000 (3 runs) | ratio | DI-1000 delta [CI] | DI-5k delta [CI] | P300 capability delta [CI] | top-1 flips vs ref (multi-q / single-q, DI-5k) |
+|---|---|---|---|---|---|---|
+| reference (author, bf16) | 5.24-5.28 | 1.0x | - | - | - | - |
+| REAX FP8 (published) | 16.21 | 3.07x | | | | |
+| **REAX FP8 + shared state** | **31.73-31.98** | **6.0x** | +0.28 / +0.45 / +0.45 | **-0.04 [-0.54, +0.41]** | +0.32 [-1.27, +1.68] | 2.1 % / 2.3 % |
+| REAX NVFP4 mid (published) | 22.49-22.93 | 4.3x | -1.19 [-3.01, +0.56] | -0.70 [-1.45, 0.00] | -0.26 [-1.68, +1.49] | 1.5 % / 7.2 % |
+| REAX NVFP4 mid + shared state | 42.94-43.62 | 8.1x | +0.57 / +0.14 / -0.93 | -0.50 [-1.25, +0.20] | -0.26 [-1.68, +1.49] | 2.5 % / 7.0 % |
+On the DI-5k traffic mix (78 % single-question requests, where sharing does not apply) the ratios are 5.6x (FP8 + shared, 29.5 vs
+5.23 dec/s) and 7.8x (NVFP4 + shared). Single-request latency (P300, c1): 50 ms vs 112-115 ms. Throughput is the same at 4, 8 and 16
+clients; answers are bit-identical across repeats at concurrency 1 (60 DI requests x 3); run-to-run top-1 differences under load 0.3-0.5 %.
+
+**Shared-state mode is an approximation** (`--shared-state 1 --shared-until 64 --shared-mixq 1`, see docs/models/pplx-shared-state.md).
+The questions of one request share the encoded state: the state is encoded once per request instead of once per question. In the
+model's noncausal attention layers the state tokens then attend to the state and all questions of the request instead of the
+state and their own question, so an answer can depend on the other questions of its request. It roughly doubles the top-1
+differences on multi-question decisions (FP8 0.5 % -> 2.1 %), with no measurable score change (DI-5k CI -0.54..+0.41). Single-question
+requests are unaffected (same path as without the mode). The speed-up depends on the traffic: it comes from requests with several
+questions about one state.
+
+What did not hold up: NVFP4 on every layer ("a4", +9 % throughput) fails the DI-5k gate (-0.91 [-1.72, -0.14]); sharing only the first
+16 layers is lossless-er but only ~1.1x; streams and larger batches give nothing. A cold server first stalled for tens of seconds on step
+sizes it had not seen (fla conv kernels specialise per 1024-token bucket): the warm-up now sweeps every bucket and oversized
+requests are split. Raw runs: results/pplx-decider-v1.1-27b/2026-10-17-shared-state/.
+
 # Results (10 Oct 2026)
 
 Model: perplexity-ai/pplx-decider-v1.1-27b @ 6195aa55. GPU: 1x NVIDIA RTX PRO 6000 Blackwell Server Edition (96 GB).

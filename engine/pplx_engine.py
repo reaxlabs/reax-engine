@@ -429,6 +429,7 @@ class PplxEngine:
         # shared-state mode (forward_groups): layers [0, shared_until) encode a request's common prefix once; default 16 =
         # the measured quality/speed point (sharing all layers is too lossy: state tokens never see the question)
         self.shared_until = int(os.environ.get("PPLX_SHARED_UNTIL", "16"))
+        self.shared_mixq = os.environ.get("PPLX_SHARED_MIXQ") == "1"  # shared attention layers: state rows also see all questions
         self.n_streams = int(os.environ.get("PPLX_STREAMS", "1"))
         self.stream_min_tokens = int(os.environ.get("PPLX_STREAM_MIN_TOKENS", "4096"))
         self.split_conv_min_T = int(os.environ.get("PPLX_SPLIT_CONV_MIN_T", "8192"))
@@ -987,7 +988,7 @@ class PplxEngine:
             sh.ext_idx, sh.keep_idx = T_(np.concatenate(ext)), T_(np.concatenate(keep))
             sh.cu_ext64 = T_(cum([n + kc for n in s_lens]))
             sh.kx_idx, sh.cu_kx, sh.max_kx, sh.offs_kx = T_(np.concatenate(kx)), T_(cu_kx, torch.int32), max(kx_lens), cu_kx.tolist()
-        if Ts and os.environ.get("PPLX_SHARED_MIXQ") == "1":
+        if Ts and self.shared_mixq:
             kp, kp_lens, j = [], [], 0
             for gi, (_, ss) in enumerate(groups):
                 parts = [np.arange(cu_p[gi], cu_p[gi + 1])]
