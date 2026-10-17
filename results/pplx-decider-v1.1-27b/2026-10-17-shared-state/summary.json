@@ -333,6 +333,28 @@
    "di-w4": 41.86186593245535,
    "di-w16": 43.48000379473577
   },
+  "Bmid-indep": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 4,
+    "mean_max_abs_dp": 0.04126397039466224,
+    "p95_max_abs_dp": 0.19435278992209437
+   },
+   "di-w4": 41.69773496494323,
+   "di-w16": 43.50688607074593
+  },
   "Bmid-r1": {
    "pod": "main",
    "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
@@ -781,6 +803,98 @@
    },
    "p300_items_per_s": 21.29662072411454
   },
+  "C-r4-flags": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --shared-until 64 --shared-mixq 1 --warm-steps 120",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-r4-flags/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-r4-flags/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 161.5396933555603,
+    "decisions_per_s": 31.750710264818366,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 81,
+     "decisions": 4356,
+     "rate": 0.0186
+    },
+    "single": {
+     "flips": 21,
+     "decisions": 773,
+     "rate": 0.02717
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.37,
+     "delta": 0.3499999999999943,
+     "ci95": [
+      -0.7000000000000028,
+      1.5100000000000051
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.72318971665939,
+      "delta": -0.34069999430965936,
+      "ci95": [
+       -1.501871739674968,
+       0.3009575782241143
+      ],
+      "p_le_0": 0.65
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 88.31065475250846,
+      "delta": 0.9740646732012408,
+      "ci95": [
+       -1.8861219288489366,
+       3.5555806766225544
+      ],
+      "p_le_0": 0.305
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 85.01692223458392,
+      "delta": 0.3166823394457765,
+      "ci95": [
+       -1.2727174355325985,
+       1.675776343458125
+      ],
+      "p_le_0": 0.412
+     }
+    }
+   },
+   "p300_items_per_s": 21.27195768516001
+  },
+  "fp8-indep": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1",
+   "env": "",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 2,
+    "mean_max_abs_dp": 0.00745281893015504,
+    "p95_max_abs_dp": 0.042389606410560804
+   },
+   "di-w4": 15.851933656525317
+  },
   "ladder-a4": {
    "pod": "main",
    "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
@@ -861,6 +975,28 @@
      "rate": 0.02717
     }
    }
+  },
+  "mid-indep": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "env": "",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 2,
+    "mean_max_abs_dp": 0.014812953823372867,
+    "p95_max_abs_dp": 0.07949650508676037
+   },
+   "di-w4": 22.026115802079833,
+   "di-w16": 22.595849943265446
   },
   "nv-ar2": {
    "pod": "main",

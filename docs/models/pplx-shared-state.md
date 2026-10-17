@@ -16,7 +16,7 @@ model the state tokens also attend to the question. When the prefix is shared, t
 
 Single-question requests (and requests whose questions share fewer than `--shared-min` = 64 prefix tokens) take the normal path:
 same results as the non-shared server up to batch-composition noise. Consequence for users: a question's probabilities can depend
-on the other questions in its request (top-1 changed for 10 of 108 questions asked alone vs in their request, FP8 + shared state).
+on the other questions in its request (top-1 changed for 10 of 108 questions asked alone vs in their request with FP8 + shared state; 2 of 108 without sharing).
 
 ## Measured drift (bf16, 206 decisions in 34 multi-question requests, vs the unshared engine)
 | sharing | state sees | top-1 agreement | mean abs dp |

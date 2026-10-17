@@ -14,7 +14,7 @@ reference run. Every run starts with fresh Triton/Inductor caches; reference and
 **Quality:** on the full set the Decision Index differs by -0.04 points (95 % CI -0.54 to +0.41; FP8 without sharing: -0.20
 [-0.64, +0.24]); no area differs significantly. Individual answers do change: 2.1 % of multi-question decisions pick a different top
 option (0.6 % for FP8 alone), and a question's probabilities can depend on the other questions in its request (top-1 changed for 10
-of 108 questions when asked alone, test of 40 requests). This is an approximation, not a lossless speed-up.
+of 108 questions when asked alone, test of 40 requests; FP8 without sharing: 2 of 108 from batch-composition noise). This is an approximation, not a lossless speed-up.
 
 | (DI-1000 unless marked) | dec/s | ratio | DI-5k delta [CI] | top-1 flips vs ref, DI-5k (multi-q / single-q) | P300 capability delta [CI] |
 |---|---|---|---|---|---|
