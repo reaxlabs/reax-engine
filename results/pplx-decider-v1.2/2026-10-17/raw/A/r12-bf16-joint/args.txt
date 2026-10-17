@@ -1,0 +1,1 @@
+--linear bf16 --compile 1 --gva 1 --warm-steps 120

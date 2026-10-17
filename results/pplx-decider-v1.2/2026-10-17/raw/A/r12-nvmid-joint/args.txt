@@ -1,0 +1,1 @@
+--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --warm-steps 120

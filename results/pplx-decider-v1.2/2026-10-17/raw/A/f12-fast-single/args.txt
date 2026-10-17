@@ -1,0 +1,1 @@
+/workspace/m12f --path fast --split single
