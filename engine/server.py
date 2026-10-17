@@ -58,6 +58,20 @@ class EngineBackend:
         self.eng = PplxEngine(a.model, linear_mode=a.linear, compile=a.compile, fp8_skip=tuple(x for x in a.fp8_skip.split(",") if x),
                               gva_native=a.gva, nvfp4_groups=tuple(g for g in a.nvfp4.split(",") if g), nvfp4_scales=a.nvfp4_scales or None)
         self.budget = a.budget
+        # pplx-decider v1.2 (joint_config.json protocol v3): one sequence per request, one readout per question at its
+        # marker token. Tokenisation is the author's own Encoder (source/src/pplx_decider/protocol.py of the checkpoint).
+        self.v12 = (Path(a.model) / "joint_config.json").exists()
+        if self.v12:
+            sys.path.insert(0, str(Path(a.model) / "source" / "src"))
+            from transformers import AutoProcessor
+            from pplx_decider.protocol import Encoder, LengthError, RequestError
+            proc = AutoProcessor.from_pretrained(a.model)
+            self.encoder = Encoder(proc, self.pr.codes)
+            self.v12_errors = (LengthError, RequestError)
+            self.v12_split = a.v12_split
+            self.max_length = a.max_length
+            assert self.max_length <= self.budget, "--max-length must fit one step (--budget)"
+            print(f"v1.2 joint protocol: {a.v12_split} requests, max_length {self.max_length}", flush=True)
         self.shared = a.shared_state == "1"  # encode a request's common prefix (system + state) once, see forward_groups
         self.shared_min = a.shared_min
         if a.shared_until is not None:
@@ -175,6 +189,9 @@ class EngineBackend:
             if self.shared:
                 self._run_groups(batch)
                 continue
+            if self.v12:
+                self._run_marked(batch)
+                continue
             try:
                 ids = torch.tensor([t for b in batch for t in b[0]], device="cuda")
                 logits = self.eng.forward(ids, [len(b[0]) for b in batch])
@@ -187,6 +204,49 @@ class EngineBackend:
                         b[2].set_exception(e)
             self.steps += 1
             self.decisions += len(batch)
+
+    def _run_marked(self, batch):
+        """v1.2 step: items (ids, (markers, counts), fut) -> fut gets one probability list per marker; warm-up items
+        (ids, n, fut) read their last token."""
+        reads, counts = [], []
+        for b in batch:
+            m, c = b[1] if isinstance(b[1], tuple) else ([len(b[0]) - 1], [b[1]])
+            reads.append(m)
+            counts.append(c)
+        try:
+            ids = torch.tensor([t for b in batch for t in b[0]], device="cuda")
+            probs = self.eng.probs(self.eng.forward_marked(ids, [len(b[0]) for b in batch], reads),
+                                   [c for cs in counts for c in cs])
+            i = 0
+            for b, cs in zip(batch, counts):
+                b[2].set_result(probs[i:i + len(cs)] if isinstance(b[1], tuple) else probs[i])
+                i += len(cs)
+        except Exception as e:  # noqa: BLE001
+            for b in batch:
+                if not b[2].done():
+                    b[2].set_exception(e)
+        self.steps += 1
+        self.decisions += sum(map(len, counts))
+
+    def _decide_v12(self, state, questions):
+        reqs = [{"state": state, "questions": questions}] if self.v12_split == "joint" else \
+            [{"state": state, "questions": {k: q}} for k, q in questions.items()]
+        try:
+            chunks = [c for r in reqs for c in self.encoder.plan(r, self.max_length)]
+        except self.v12_errors[0] as e:
+            raise Capacity(f"maximum context length exceeded: {e}") from None
+        except self.v12_errors[1] as e:
+            raise ValueError(str(e)) from None
+        futs = []
+        for c in chunks:
+            f = Future()
+            futs.append((c, f))
+            self.q.put((c.input_ids.tolist(), (c.markers.tolist(), list(c.counts)), f))
+        answers = {}
+        for c, f in futs:
+            for key, p in zip(c.keys, f.result()):
+                answers[key] = shape(questions[key], p)
+        return {k: answers[k] for k in questions}, sum(c.length for c in chunks)
 
     def _run_groups(self, batch):
         """shared-state step: queue items are (ids, n, fut) single decisions or (tokens, None, [(prefix, [(suffix, n, fut)...])])
@@ -214,6 +274,8 @@ class EngineBackend:
         self.decisions += len(futs)
 
     def decide(self, state, questions):
+        if self.v12:
+            return self._decide_v12(state, questions)
         enc = {k: self.pr.ids(state, q) for k, q in questions.items()}
         if any(len(ids) > MAX_TOKENS for ids, _ in enc.values()):
             raise Capacity(f"maximum context length exceeded: a question branch is longer than {MAX_TOKENS} tokens")
@@ -302,7 +364,12 @@ def handler(backend):
                 return self._send(404, {"error": "not found"})
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-                validate(body.get("questions"))
+                if body.get("images"):
+                    raise Capacity("images are not supported by this engine (text-only); use the author's pplx_decider")
+                if not getattr(backend, "v12", False):  # v1.2: the author's Encoder validates (1-255 options, 2-255 levels)
+                    validate(body.get("questions"))
+                elif not isinstance(body.get("questions"), dict) or not body["questions"]:
+                    raise ValueError("questions must be a non-empty object")
                 answers, tokens = backend.decide(body.get("state"), body["questions"])
                 self._send(200, {"model": NAME, "answers": answers, "usage": {"input_tokens": tokens, "output_tokens": 0}})
             except Capacity as e:
@@ -334,8 +401,15 @@ def main():
     ap.add_argument("--shared-until", type=int, default=None, help="share layers [0, N) (default: $PPLX_SHARED_UNTIL or 16; 64 = all)")
     ap.add_argument("--shared-mixq", default=None, help="1: in the shared attention layers the state rows attend to the state and all "
                     "questions of the request (default: $PPLX_SHARED_MIXQ or 0)")
+    ap.add_argument("--v12-split", choices=["joint", "single"], default="joint", help="v1.2 checkpoints: joint = one sequence "
+                    "per request (author default); single = every question as its own request (v1.1 style)")
+    ap.add_argument("--max-length", type=int, default=8192, help="v1.2: per-sequence token limit; longer requests are split "
+                    "into question chunks by the author's Encoder.plan, a single over-long question -> 422")
     ap.add_argument("--warm-steps", type=int, default=200, help="randomised warm-up steps before /health is ready")
     a = ap.parse_args()
+    global NAME
+    if (Path(a.model) / "joint_config.json").exists():
+        NAME = Path(a.model).resolve().name
     backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)
     class Srv(ThreadingHTTPServer):
         request_queue_size = 512
