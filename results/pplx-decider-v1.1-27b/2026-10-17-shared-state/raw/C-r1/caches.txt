@@ -1,0 +1,1 @@
+TRITON_CACHE_DIR=/workspace/cold/C-r1/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-r1/inductor

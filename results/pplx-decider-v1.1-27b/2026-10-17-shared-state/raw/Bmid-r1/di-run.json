@@ -1,0 +1,14 @@
+{
+ "rows": 1000,
+ "results": 1000,
+ "status": {
+  "ok": 1000
+ },
+ "questions": 5129,
+ "wall_s": 118.15137028694153,
+ "workers": 8,
+ "rows_per_s": 8.463719020536178,
+ "decisions_per_s": 43.41041485633006,
+ "extra": {},
+ "failed_workers": []
+}
