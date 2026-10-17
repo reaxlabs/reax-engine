@@ -63,12 +63,14 @@ about 5 minutes before serving (the author's fast path about 40 s).
 
 FP8 moves the small model more than the 27B: the author's own FP8 option changes as many Flash answers (96.9 %) as ours, and the
 FP8 DI-1000 delta is the weakest of all rows (-1.05, CI includes 0). For Flash the quality-safe choice is REAX bf16 (1.75x, 99.5 %
-same answers); FP8 (2.4x) only after a full-set check. The bf16 port is exact on Flash too (100 % / 99.4 % same top answer on the
-178-question check, mean max |dp| 0.0025).
+same answers); FP8 (2.4x) only after a full-set check. The bf16 port is at bf16-noise level on Flash (100 % / 99.4 % same top answer on the
+178-question check, mean max |dp| 0.0025, about 10x the 27B drift; not "exact").
 
 **Caveats.** Text only (vision requests -> 422; the author's library handles images). Requests are capped at 8,192 tokens per
-sequence (author default 262,144): longer joint requests are split into question chunks like the author's `Encoder.plan`, a single
-longer question is refused. The author's fast path needed one fix to run as intended inside a server thread: torch 2.14 keeps
+sequence (author default 262,144). Longer joint requests are rejected with HTTP 422 `context_length` by default
+(`--v12-overlength reject`, so a router sends them to the author path, which runs them as one sequence); `--v12-overlength split`
+splits them into question chunks like the author's `Encoder.plan` (not measured on GPU), a single longer question is always refused.
+The benchmark runs above used max_length 8,192 on both sides and no Decision-Index request was split. The author's fast path needed one fix to run as intended inside a server thread: torch 2.14 keeps
 `torch._dynamo.config` per thread, so its `cache_size_limit = 256` set at load time does not reach a worker thread and the layer
 compile falls back to eager after 8 recompiles (as shipped in a thread: 10.43 dec/s joint, 5.22 one per request). All author
 numbers above use the limit re-applied in the serving thread; that is the favourable baseline. NVFP4 reuses the v1.1 activation
