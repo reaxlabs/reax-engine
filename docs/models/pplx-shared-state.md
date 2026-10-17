@@ -7,13 +7,16 @@ per question. In shared-state mode the common token prefix of the request's ques
 
 **This is an approximation, not a lossless optimisation.** The model's full-attention layers are noncausal: in the original
 model the state tokens also attend to the question. When the prefix is shared, they cannot see "their" question:
-- DeltaNet layers (48 of 64) are causal, so the shared prefix is exact there.
-- In the attention layers (16 of 64) the state tokens attend either to the state only (`PPLX_SHARED_MIXQ=0`) or to the state
+- Before the first attention layer (layers 0-2, DeltaNet, causal) the shared prefix is exact; from layer 3 on everything downstream
+  differs slightly, which the measurements below quantify.
+- In the 16 attention layers (3, 7, ..., 63) the state tokens attend either to the state only (`PPLX_SHARED_MIXQ=0`) or to the state
   plus **all** questions of the request (`PPLX_SHARED_MIXQ=1`), instead of the state plus their own question.
 - Each question attends to the state and to itself, as in the original model; the readout is unchanged.
 - `PPLX_SHARED_UNTIL=L` (default 16) shares only layers 0..L-1 and then switches to full per-question sequences.
 
-Single-question requests take the normal path (identical results to the non-shared server).
+Single-question requests (and requests whose questions share fewer than `--shared-min` = 64 prefix tokens) take the normal path:
+same results as the non-shared server up to batch-composition noise. Consequence for users: a question's probabilities can depend
+on the other questions in its request (top-1 changed for 10 of 108 questions asked alone vs in their request, FP8 + shared state).
 
 ## Measured drift (bf16, 206 decisions in 34 multi-question requests, vs the unshared engine)
 | sharing | state sees | top-1 agreement | mean abs dp |
