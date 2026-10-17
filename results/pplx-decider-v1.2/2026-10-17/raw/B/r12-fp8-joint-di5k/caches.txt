@@ -1,0 +1,1 @@
+TRITON_CACHE_DIR=/workspace/cold/r12-fp8-joint-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/r12-fp8-joint-di5k/inductor

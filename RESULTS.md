@@ -1,3 +1,80 @@
+# Results (17 Oct 2026): pplx-decider v1.2 (joint format), FP8 2.4-2.5x the author's fast path, scores within noise
+
+Models: perplexity-ai/pplx-decider-v1.2 (27B) @225c913d and perplexity-ai/pplx-decider-flash-v1.2 (4B) @6d771ad7. GPU: 1x RTX PRO
+6000 Blackwell Server Edition (96 GB), RunPod SECURE (pod A) unless marked. **Reference = the author's v1.2 fast path**
+(`Decider.from_pretrained(..., fast=True)`: packing, whole-layer `torch.compile`, CUDA graphs, last-layer pruning; bf16, its
+default), behind a thin batching server (results/pplx-decider-v1.2/2026-10-17/harness/v12_server.py: a GPU thread passes every queued request to one
+`decide(list)` call so the fast path can pack concurrent requests). Same harness as below (official owo runners, DI-1000 sample =
+1,000 requests / 5,129 decisions, 8 clients; P300 with 16 clients; c1 latency = 48 sequential P300 requests), paired bootstrap 95 % CIs,
+fresh Triton/Inductor caches every run, author and engine interleaved on the same pod. Both servers use the same author `Encoder`
+(identical prompts: 1,777,408 input tokens on DI-1000 in joint mode, 3,593,463 one question per request) and the same length rule
+(a single question over 8,192 tokens -> 422; 3 of 300 P300 items, none of the DI-1000 or DI-5k rows).
+
+**The old 6x does not carry over.** It was measured against the v1.1 serial research server. v1.2 already shares the state across
+the questions of a request (joint format) and ships a compiled fast path, so the headroom is smaller: **2.4-2.5x** with FP8 in
+joint mode (27B, 8 clients, DI-1000), 2.1x one question per request, 1.5x at the same precision (bf16), 1.6x against the author's
+own off-by-default `fp8=True`. Quality: the paired DI-1000 deltas of the FP8 runs lie within about +-1 point (CIs include 0; bf16
+within +-0.5), and 99.3 % of the decisions keep the author's top answer. All numbers are steady state: the engine warms up for
+about 5 minutes before serving (the author's fast path about 40 s).
+
+| 27B, DI-1000 | dec/s | x author fast (bf16) | c1 p50 / p95 | DI delta [95 % CI] vs author | answers same as author | P300 capability delta |
+|---|---|---|---|---|---|---|
+| author fast path, joint (bf16, default) | 12.53-12.55 (2 runs; 32 clients 12.93) | 1.0x | 305 / 308 ms | - | - | - |
+| author fast path, joint, its `fp8=True` option | 18.93-19.11 (2 runs) | 1.5x | 191 / 195 ms | +0.30 [-0.18, +1.04]; r2 +0.96 [+0.14, +2.41] (vs its bf16) | 99.4 % | |
+| REAX bf16, joint | 18.97 | 1.51x | 82 / 142 ms | -0.06 [-0.47, +0.26] | 99.7 % | +0.01 [-0.28, +0.82] |
+| **REAX FP8, joint** | **30.94-31.10 (2 runs)** | **2.47x** (slowest REAX / fastest author run; 2.39x vs the author at 32 clients, REAX at 8) | **51-53 / 87-88 ms** | **+0.63 [-0.16, +1.78]; r2 +0.10 [-0.73, +1.33]** | 99.3 % | +1.13 [-0.74, +2.22] |
+| REAX NVFP4 mid (v1.1 scales), joint - experimental | 42.77 | 3.41x | 50 / 63 ms | -0.80 [-2.33, +0.72] | 98.1 % | +0.13 [-2.33, +1.78] |
+| author fast path, one question per request | 7.59 | 1.0x (own mode) | 305 / 308 ms | (joint vs single: -0.11 [-0.92, +0.73]) | | |
+| **REAX FP8, one question per request** | **15.99** | **2.11x** | 52 / 90 ms | +0.42 [-0.69, +1.77] | 99.2 % | +1.03 [-1.00, +2.17] |
+
+- vs the author's own (off-by-default) FP8 option: REAX FP8 is 1.62x faster (30.94 / 19.11); both FP8 variants keep about the
+  same share of the bf16 top answers (author FP8 vs author bf16 99.4 %, REAX FP8 vs author bf16 99.3 %).
+- The author's static single-bucket mode `FastOptions(buckets=(32768,))` (card: about +5 % offline throughput on GB200, "for
+  offline throughput only") is much slower under this serving load, because every step is padded to 32k tokens: on pod B P300
+  1.41 vs 4.05 items/s for the default buckets, c1 p50 5.5 s, DI-1000 2.8 dec/s over the first 479 rows (stopped early) vs 11.2
+  for the default buckets on the same pod. The default buckets are therefore the favourable author configuration here. Not run: REAX at
+  32 clients (v1.1 engine: within 3 % at 4/8/16 clients).
+- Latency: the author's default buckets pad every pack to at least 2,048 tokens, which sets its flat ~305 ms c1 latency on this
+  GPU; c1 and P300 ratios are reported, not used as speed-up headlines.
+- Run-to-run noise: two identical REAX FP8 runs differ by -0.65 DI points [-1.24, -0.14] (99.6 % same answers; batch
+  composition under load), so single DI-1000 CIs that just exclude 0 (e.g. P300 intelligence of REAX FP8 r2, +1.03 [+0.05, +2.32],
+  or the author FP8 r2 above) are within run-to-run variation. At concurrency 1 the engine is deterministic: 60 DI requests
+  (15 multi-question) x 3 repeats, 304/304 answers bit-identical.
+- Exactness of the port (tools/exact_v12.py, 40 multi-question joint requests / 178 questions, vs the author's exact reference
+  path `fast=False`, one request per call): bf16 100 % same top answer, mean over questions of the max |dp| over options 0.00025;
+  FP8 100 %, 0.0011-0.0016. (For scale only, different metric and GPU: the model card reports mean |dp| 0.002 for the author's
+  fast path vs its reference.) Small sample; the DI-1000 runs above are the larger check.
+- Cost at USD 2.49/h (RunPod SECURE): author fast joint USD 0.055 per 1k decisions, REAX FP8 joint USD 0.022; one question per
+  request USD 0.091 vs 0.043.
+- **Full Decision-Index set (5,000 requests / 25,509 decisions, pod B = RunPod COMMUNITY RTX PRO 6000, both runs on that pod):**
+  REAX FP8 joint 28.05 dec/s vs author fast joint 11.76 = **2.38x**; DI **+0.23 [-0.36, +0.75]**, 99.2 % same top answer; four
+  areas' CIs include 0, tools +0.10 [+0.03, +0.17]. Same pod, DI-1000: 27.58 vs 11.20 = 2.46x, DI +0.57 [-0.38, +1.91], 99.4 %
+  same top answer. (Pod B is a slower host than pod A; ratios are only formed within a pod.)
+
+| Flash 4B, DI-1000 | dec/s | x author fast | c1 p50 | DI delta [CI] vs author | answers same |
+|---|---|---|---|---|---|
+| author fast path, joint (bf16) | 56.52 | 1.0x | 59 ms | - | - |
+| author fast path, joint, `fp8=True` | 72.23 | 1.28x | 40 ms | -0.40 [-1.94, +0.97] | 96.9 % |
+| **REAX FP8, joint** | **137.06** | **2.43x** (1.90x vs author FP8) | **27 ms** | -1.05 [-2.33, +0.39] | 96.9 % |
+| author fast path, one question per request | 35.91 | 1.0x | 59 ms | | |
+| **REAX FP8, one question per request** | **77.83** | **2.17x** | 27 ms | -0.19 [-1.32, +1.06] | 98.5 % |
+| pod B: author fast path, joint (bf16) | 51.67 | 1.0x | 63 ms | - | - |
+| **pod B: REAX bf16, joint (quality-safe)** | **90.66** | **1.75x** | 42 ms | **+0.24 [-0.09, +0.58]** | 99.5 % |
+
+FP8 moves the small model more than the 27B: the author's own FP8 option changes as many Flash answers (96.9 %) as ours, and the
+FP8 DI-1000 delta is the weakest of all rows (-1.05, CI includes 0). For Flash the quality-safe choice is REAX bf16 (1.75x, 99.5 %
+same answers); FP8 (2.4x) only after a full-set check. The bf16 port is exact on Flash too (100 % / 99.4 % same top answer on the
+178-question check, mean max |dp| 0.0025).
+
+**Caveats.** Text only (vision requests -> 422; the author's library handles images). Requests are capped at 8,192 tokens per
+sequence (author default 262,144): longer joint requests are split into question chunks like the author's `Encoder.plan`, a single
+longer question is refused. The author's fast path needed one fix to run as intended inside a server thread: torch 2.14 keeps
+`torch._dynamo.config` per thread, so its `cache_size_limit = 256` set at load time does not reach a worker thread and the layer
+compile falls back to eager after 8 recompiles (as shipped in a thread: 10.43 dec/s joint, 5.22 one per request). All author
+numbers above use the limit re-applied in the serving thread; that is the favourable baseline. NVFP4 reuses the v1.1 activation
+scales; it is not recommended without a v1.2 calibration and a full-set check (the v1.1 equivalent failed the DI-5k gate).
+Details, raw runs and paired comparisons: results/pplx-decider-v1.2/2026-10-17/, docs/models/pplx-decider-v1.2.md.
+
 # Results (17 Oct 2026): shared-state mode, 5.8-6.0x the reference, no measurable score change
 
 Model: perplexity-ai/pplx-decider-v1.1-27b @ 6195aa55. GPU: 1x NVIDIA RTX PRO 6000 Blackwell Server Edition (96 GB, 600 W), RunPod,

@@ -1,0 +1,1 @@
+TRITON_CACHE_DIR=/workspace/cold/r12-nvmid-joint/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/r12-nvmid-joint/inductor

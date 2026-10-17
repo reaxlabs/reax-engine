@@ -6,7 +6,7 @@
 ROWS: di5k-rows.jsonl (request rows with state + questions; the first N with >= 1 question and <= 8192 tokens are used).
 Prints argmax agreement and probability drift (temperature-scaled softmax over valid options).
 """
-import json, sys
+import json, os, sys
 from pathlib import Path
 
 import torch
@@ -17,7 +17,9 @@ def rows(path, n):
     for line in open(path):
         r = json.loads(line)
         req = r.get("request") or r.get("payload") or r
-        if isinstance(req, dict) and "state" in req and isinstance(req.get("questions"), dict) and req["questions"]:
+        multi = os.environ.get("EXACT_MULTI") == "1"  # only requests with >= 2 questions (joint readouts)
+        if isinstance(req, dict) and "state" in req and isinstance(req.get("questions"), dict) and \
+                len(req["questions"]) >= (2 if multi else 1):
             out.append({"state": req["state"], "questions": req["questions"]})
         if len(out) >= 4 * n:
             break

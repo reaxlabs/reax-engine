@@ -62,6 +62,8 @@ class EngineBackend:
         # marker token. Tokenisation is the author's own Encoder (source/src/pplx_decider/protocol.py of the checkpoint).
         self.v12 = (Path(a.model) / "joint_config.json").exists()
         if self.v12:
+            if a.shared_state == "1":
+                raise SystemExit("--shared-state is a v1.1 approximation; v1.2 checkpoints share the state natively (joint format)")
             sys.path.insert(0, str(Path(a.model) / "source" / "src"))
             from transformers import AutoProcessor
             from pplx_decider.protocol import Encoder, LengthError, RequestError

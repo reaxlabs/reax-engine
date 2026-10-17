@@ -1,0 +1,1 @@
+--linear fp8 --compile 1 --gva 1 --warm-steps 120 --v12-split single

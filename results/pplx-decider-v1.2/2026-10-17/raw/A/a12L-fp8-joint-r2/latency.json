@@ -1,0 +1,6 @@
+{
+ "n": 48,
+ "p50_s": 0.190610870718956,
+ "p95_s": 0.19304735213518143,
+ "mode": "sequential, one request at a time"
+}
