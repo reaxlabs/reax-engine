@@ -30,7 +30,7 @@ on the other questions in its request (top-1 changed for 10 of 108 questions ask
 (batch-composition noise floor of the same engine: 99.5 % / 0.002.)
 
 ## Recommended settings and results
-- FP8 (any FP8 GPU; the quality-safe setting, 6.0x the author reference on DI-1000 at equal DI-5k score):
+- FP8 (any FP8 GPU; the quality-safe setting, 6.0x the author reference on DI-1000, 5.8x on DI-5k, no measurable DI change):
   `python engine/server.py --model /model --linear fp8 --compile 1 --gva 1 --shared-state 1 --shared-until 64 --shared-mixq 1`
 - NVFP4 mid-layers (Blackwell; 8.1x, small non-significant score loss, as the NVFP4 mode itself): add
   `--nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json`.

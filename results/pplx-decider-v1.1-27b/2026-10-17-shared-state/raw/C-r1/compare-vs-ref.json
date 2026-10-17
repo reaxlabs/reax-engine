@@ -1,6 +1,6 @@
 {
- "a": "/home/flori/jobs/reax-engine-5x-autoresearch-20261016/runs/ref",
- "b": "/home/flori/jobs/reax-engine-5x-autoresearch-20261016/runs/C-r1",
+ "a": "ref",
+ "b": "C-r1",
  "di5k": {
   "index": {
    "a": 58.02,

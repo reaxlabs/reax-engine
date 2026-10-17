@@ -1,6 +1,6 @@
 {
- "a": "/home/flori/jobs/reax-engine-5x-autoresearch-20261016/runs/ref",
- "b": "/home/flori/jobs/reax-engine-5x-autoresearch-20261016/runs/nv-ar2",
+ "a": "ref",
+ "b": "nv-ar2",
  "di5k": {
   "index": {
    "a": 58.02,

@@ -1,6 +1,6 @@
 {
- "a": "/home/flori/jobs/reax-engine-5x-autoresearch-20261016/runs-podB/ref-di5k",
- "b": "/home/flori/jobs/reax-engine-5x-autoresearch-20261016/runs-podB/mid-di5k",
+ "a": "ref-di5k",
+ "b": "mid-di5k",
  "di5k": {
   "index": {
    "a": 58.68,
