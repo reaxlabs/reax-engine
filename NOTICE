@@ -1,5 +1,13 @@
 REAX Engine
-Copyright 2026 The REAX Engine authors. Licensed under the Apache License, Version 2.0 (see LICENSE).
+Required Notice: Copyright 2026 productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG, Passau, Germany (https://github.com/reaxlabs/reax-engine)
+The licensor's own code is licensed under the REAX Engine License 1.0 (see LICENSE): free for individuals, organisations
+with no more than 10 employees and under USD 5M annual revenue, and for taking part in the REAX subnet (Bittensor netuid
+92); everyone else needs a commercial licence (info@decisionmodels.io). Versions up to and including commit
+ffa8398af512a0ff4694fbfec3cfc16fe874cc28 were
+released under the Apache License, Version 2.0 and stay available under it.
+
+The third-party parts listed below stay under their own licences; the Apache License 2.0 text is in
+LICENSES/Apache-2.0.txt. Files that contain copied or adapted third-party code say so in their header.
 
 This product serves the model perplexity-ai/pplx-decider-v1.1-27b (Apache License 2.0, Copyright Perplexity AI;
 derived from Qwen/Qwen3.8-27B, Apache License 2.0). Model weights are NOT included; they are downloaded from

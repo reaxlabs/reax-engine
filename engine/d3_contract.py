@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copied from vllm-sr/d3 (Apache-2.0, (c) vLLM Semantic Router Team); see upstream/d3/LICENSE and NOTICE.
 """d3 prompt / answer contract for the engine (vendored, unchanged logic).
 
 Copied from vllm-sr/d3 (revision 5ce995dfb7ff07da00fec4211eb7f0560f52eaf8) d3_format.py and d3_runtime.py

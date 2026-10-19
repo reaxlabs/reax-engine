@@ -19,6 +19,8 @@ RUN mkdir -p /opt/reax /licenses
 COPY manifests/s1-fast-v1.json /opt/reax/s1-fast-v1.json
 COPY engine /opt/reax/engine
 COPY LICENSE NOTICE /licenses/
+COPY LICENSES /licenses/LICENSES/
+COPY upstream/d3/LICENSE upstream/d3/NOTICE /licenses/d3/
 # Byte-compile now: the root filesystem is read-only at run time.
 RUN python -m compileall -q /opt/reax/engine
 RUN useradd --uid 10002 --create-home s1m

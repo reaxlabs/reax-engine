@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-REAX-Engine-1.0 AND Apache-2.0
+# REAX Engine code (LICENSE) with parts adapted from Apache-2.0 work named below and in NOTICE; modified by the REAX Engine licensor.
 """Prefill-only engine for perplexity-ai/pplx-decider-v1.1-27b (Qwen3.5 hybrid, noncausal full attention, readout).
 
 Same math as the author's autojev.model.DecisionModel (transformers 5.17 Qwen3_5Model + SDPA + noncausal hook), but:

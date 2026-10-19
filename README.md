@@ -1,6 +1,7 @@
 # REAX Engine
 
-An open-source (Apache-2.0) **inference engine for decision models**.
+A source-available **inference engine for decision models**. Free for individuals, small organisations and REAX subnet
+participants; larger companies need a commercial licence (see [Licence](#licence)).
 
 A decision model answers a structured question (choice, yes/no, score) about a state with **one forward pass and a readout over
 the answer options** at the last prompt position: probabilities = softmax(option logits / T). There is no token generation.
@@ -80,3 +81,23 @@ curl -s localhost:8741/v1/systemone -H 'content-type: application/json' -d '{"mo
 ```
 Evaluate any model against its reference: `bench/README.md`. Hardware and memory notes: DEPLOY.md. Earlier pplx results and the
 experimental calibrated NVFP4 mode: RESULTS.md.
+
+## Licence
+The REAX Engine is source-available under the [REAX Engine License 1.0](LICENSE). In plain English (the LICENSE text is
+what counts):
+- **Free** for individuals for personal purposes, and for companies and other organisations (including non-profits and
+  universities) with **no more than 10 employees and under USD 5 million annual revenue**, counted together with
+  affiliates. Free use includes commercial use, changes and redistribution under the same terms, but not use for the
+  benefit of an organisation above these limits (for example running or hosting the engine as a service for it).
+- **Free for the REAX subnet** (Bittensor netuid 92), whatever your size: running miners and validators, serving the
+  subnet's requests, building and submitting engine-competition entries based on the reference engine, and publishing
+  them as the subnet rules require. Submitting an entry grants the licensor a licence to your changes in it, so winning
+  entries can be adopted into the reference engine.
+- **Free 30-day evaluation** once per company. A company that outgrows the free limits has 90 days to take a licence.
+- **Everyone else needs a commercial licence.** Contact us at **info@decisionmodels.io**. Guide prices (not an offer,
+  plus VAT where applicable): about **USD 1,000 per year** for a company above the free limits, about **USD 10,000 per
+  year** from 1,000 employees or USD 500 million annual revenue.
+- **Earlier releases stay Apache-2.0:** everything up to and including commit `ffa8398` was published under the Apache
+  License 2.0 and remains available under it.
+- **Third-party code** (prompt contracts adapted from model authors, all Apache-2.0) keeps its own licence; see
+  [NOTICE](NOTICE) and the file headers. Model weights are not part of this repository and keep their own licences.

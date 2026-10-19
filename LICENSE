@@ -1,202 +1,203 @@
+# REAX Engine License 1.0
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Required Notice: Copyright 2026 productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG, Passau, Germany (https://github.com/reaxlabs/reax-engine)
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+This is a source-available license, not an open-source license. Individuals, small organizations and REAX subnet
+participants may use the software free of charge. Everyone else needs a commercial license from the licensor (see
+[Commercial Licenses](#commercial-licenses)).
 
-   1. Definitions.
+## Acceptance
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all
+your licenses.
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
+## Copyright License
 
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
+The licensor grants you a copyright license for the software to do everything you might do with the software that would
+otherwise infringe the licensor's copyright in it for any permitted purpose. However, you may only distribute the
+software according to [Distribution License](#distribution-license) and make changes or new works based on the software
+according to [Changes and New Works License](#changes-and-new-works-license).
 
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+## Distribution License
 
-      "Source" form shall mean the preferred form for making modifications,
-      including but not limited to software source code, documentation
-      source, and configuration files.
+The licensor grants you an additional copyright license to distribute copies of the software. Your license to distribute
+covers distributing the software with changes and new works permitted by
+[Changes and New Works License](#changes-and-new-works-license).
 
-      "Object" form shall mean any form resulting from mechanical
-      transformation or translation of a Source form, including but
-      not limited to compiled object code, generated documentation,
-      and conversions to other media types.
+## Notices
 
-      "Work" shall mean the work of authorship, whether in Source or
-      Object form, made available under the License, as indicated by a
-      copyright notice that is included in or attached to the work
-      (an example is provided in the Appendix below).
+You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the
+URL for them, as well as copies of any plain-text lines beginning with `Required Notice:` that the licensor provided with
+the software. The URL for version 1.0 of these terms is
+<https://github.com/reaxlabs/reax-engine/blob/license-1.0/LICENSE>.
 
-      "Derivative Works" shall mean any work, whether in Source or Object
-      form, that is based on (or derived from) the Work and for which the
-      editorial revisions, annotations, elaborations, or other modifications
-      represent, as a whole, an original work of authorship. For the purposes
-      of this License, Derivative Works shall not include works that remain
-      separable from, or merely link (or bind by name) to the interfaces of,
-      the Work and Derivative Works thereof.
+## Changes and New Works License
 
-      "Contribution" shall mean any work of authorship, including
-      the original version of the Work and any modifications or additions
-      to that Work or Derivative Works thereof, that is intentionally
-      submitted to Licensor for inclusion in the Work by the copyright owner
-      or by an individual or Legal Entity authorized to submit on behalf of
-      the copyright owner. For the purposes of this definition, "submitted"
-      means any form of electronic, verbal, or written communication sent
-      to the Licensor or its representatives, including but not limited to
-      communication on electronic mailing lists, source code control systems,
-      and issue tracking systems that are managed by, or on behalf of, the
-      Licensor for the purpose of discussing and improving the Work, but
-      excluding communication that is conspicuously marked or otherwise
-      designated in writing by the copyright owner as "Not a Contribution."
+The licensor grants you an additional copyright license to make changes and new works based on the software for any
+permitted purpose.
 
-      "Contributor" shall mean Licensor and any individual or Legal Entity
-      on behalf of whom a Contribution has been received by Licensor and
-      subsequently incorporated within the Work.
+## Patent License
 
-   2. Grant of Copyright License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      copyright license to reproduce, prepare Derivative Works of,
-      publicly display, publicly perform, sublicense, and distribute the
-      Work and such Derivative Works in Source or Object form.
+The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes
+able to license, that you would infringe by using the software.
 
-   3. Grant of Patent License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      (except as stated in this section) patent license to make, have made,
-      use, offer to sell, sell, import, and otherwise transfer the Work,
-      where such license applies only to those patent claims licensable
-      by such Contributor that are necessarily infringed by their
-      Contribution(s) alone or by combination of their Contribution(s)
-      with the Work to which such Contribution(s) was submitted. If You
-      institute patent litigation against any entity (including a
-      cross-claim or counterclaim in a lawsuit) alleging that the Work
-      or a Contribution incorporated within the Work constitutes direct
-      or contributory patent infringement, then any patent licenses
-      granted to You under this License for that Work shall terminate
-      as of the date such litigation is filed.
+## Fair Use
 
-   4. Redistribution. You may reproduce and distribute copies of the
-      Work or Derivative Works thereof in any medium, with or without
-      modifications, and in Source or Object form, provided that You
-      meet the following conditions:
+You may have "fair use" or similar statutory rights for the software under the law. These terms do not limit them.
 
-      (a) You must give any other recipients of the Work or
-          Derivative Works a copy of this License; and
+## Permitted Purposes
 
-      (b) You must cause any modified files to carry prominent notices
-          stating that You changed the files; and
+Use of the software is use for a permitted purpose if it falls under any of the following sections.
 
-      (c) You must retain, in the Source form of any Derivative Works
-          that You distribute, all copyright, patent, trademark, and
-          attribution notices from the Source form of the Work,
-          excluding those notices that do not pertain to any part of
-          the Derivative Works; and
+### Personal Uses
 
-      (d) If the Work includes a "NOTICE" text file as part of its
-          distribution, then any Derivative Works that You distribute must
-          include a readable copy of the attribution notices contained
-          within such NOTICE file, excluding those notices that do not
-          pertain to any part of the Derivative Works, in at least one
-          of the following places: within a NOTICE text file distributed
-          as part of the Derivative Works; within the Source form or
-          documentation, if provided along with the Derivative Works; or,
-          within a display generated by the Derivative Works, if and
-          wherever such third-party notices normally appear. The contents
-          of the NOTICE file are for informational purposes only and
-          do not modify the License. You may add Your own attribution
-          notices within Derivative Works that You distribute, alongside
-          or as an addendum to the NOTICE text from the Work, provided
-          that such additional attribution notices cannot be construed
-          as modifying the License.
+Use by an individual for research, experiment, testing, learning, hobby projects or other personal purposes is use for a
+permitted purpose, as long as the use does not benefit any organization that does not itself qualify under
+[Small Business](#small-business).
 
-      You may add Your own copyright statement to Your modifications and
-      may provide additional or different license terms and conditions
-      for use, reproduction, or distribution of Your modifications, or
-      for any such Derivative Works as a whole, provided Your use,
-      reproduction, and distribution of the Work otherwise complies with
-      the conditions stated in this License.
+### Small Business
 
-   5. Submission of Contributions. Unless You explicitly state otherwise,
-      any Contribution intentionally submitted for inclusion in the Work
-      by You to the Licensor shall be under the terms and conditions of
-      this License, without any additional terms or conditions.
-      Notwithstanding the above, nothing herein shall supersede or modify
-      the terms of any separate license agreement you may have executed
-      with Licensor regarding such Contributions.
+Use of the software for the benefit of your company is use for a permitted purpose if your company has no more than 10
+employees and had less than 5,000,000 USD revenue in its last completed fiscal year (or, in its first fiscal year,
+expects less than that in the current one).
 
-   6. Trademarks. This License does not grant permission to use the trade
-      names, trademarks, service marks, or product names of the Licensor,
-      except as required for reasonable and customary use in describing the
-      origin of the Work and reproducing the content of the NOTICE file.
+**Employees** are counted as full-time equivalents averaged over the last 12 months (a part-time worker counts
+proportionally), including working owners, independent contractors and agency staff who work for your company at least
+20 hours a week on average. **Revenue** means the consolidated gross revenue of your company. Both figures always cover
+your company as defined below, including every organization that controls it, is controlled by it, or is under common
+control with it. Revenue in another currency is converted to USD at the average European Central Bank reference rates
+for that fiscal year.
 
-   7. Disclaimer of Warranty. Unless required by applicable law or
-      agreed to in writing, Licensor provides the Work (and each
-      Contributor provides its Contributions) on an "AS IS" BASIS,
-      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-      implied, including, without limitation, any warranties or conditions
-      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-      PARTICULAR PURPOSE. You are solely responsible for determining the
-      appropriateness of using or redistributing the Work and assume any
-      risks associated with Your exercise of permissions under this License.
+This section does not cover use for the benefit of any other organization that is not itself a qualifying company under
+this section, including operating, hosting or providing the software, or its output, as a service to such an
+organization.
 
-   8. Limitation of Liability. In no event and under no legal theory,
-      whether in tort (including negligence), contract, or otherwise,
-      unless required by applicable law (such as deliberate and grossly
-      negligent acts) or agreed to in writing, shall any Contributor be
-      liable to You for damages, including any direct, indirect, special,
-      incidental, or consequential damages of any character arising as a
-      result of this License or out of the use or inability to use the
-      Work (including but not limited to damages for loss of goodwill,
-      work stoppage, computer failure or malfunction, or any and all
-      other commercial damages or losses), even if such Contributor
-      has been advised of the possibility of such damages.
+If your company stops meeting these limits, this section continues to apply to your company's use of the software until
+the earlier of (a) 90 days after the end of the month (employees) or of the fiscal year (revenue) in which a limit was
+first exceeded and (b) the day a commercial license starts.
 
-   9. Accepting Warranty or Additional Liability. While redistributing
-      the Work or Derivative Works thereof, You may choose to offer,
-      and charge a fee for, acceptance of support, warranty, indemnity,
-      or other liability obligations and/or rights consistent with this
-      License. However, in accepting such obligations, You may act only
-      on Your own behalf and on Your sole responsibility, not on behalf
-      of any other Contributor, and only if You agree to indemnify,
-      defend, and hold each Contributor harmless for any liability
-      incurred by, or claims asserted against, such Contributor by reason
-      of your accepting any such warranty or additional liability.
+### Evaluation
 
-   END OF TERMS AND CONDITIONS
+Use of the software by any company for internal evaluation, to decide whether to take a commercial license, is use for a
+permitted purpose for 30 days from the first use by any person for that company. This applies once per company (including
+every organization that is part of it under [Definitions](#definitions)) unless the licensor agrees in writing to an
+extension. Evaluation does not cover use in production or for
+the benefit of the company's customers.
 
-   APPENDIX: How to apply the Apache License to your work.
+### REAX Subnet
 
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
+Use of the software by anyone, of any size, is use for a permitted purpose to the extent the use is for taking part in
+the REAX subnet, and only for that purpose. The **REAX subnet** is the subnet with netuid 92 on the Bittensor main
+network while the licensor or an organization the licensor designates operates it, together with its test networks and
+any successor subnet the licensor designates in writing or in the README of this repository. This covers:
 
-   Copyright 2026 The REAX Engine authors
+1. running a miner or a validator for the REAX subnet, including serving inference requests that reach your miner
+   through the REAX subnet from its validators or from the REAX subnet's official gateway;
+2. building, testing, measuring and submitting engines or other entries to competitions of the REAX subnet, including
+   changing the software and building container images from it for that purpose; and
+3. publishing the source code and container images of such entries as the REAX subnet's rules require or allow.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+Serving requests that reach you any other way, using the same deployment for your own customers or products, or using
+the software or changes and new works based on it outside the REAX subnet is not covered by this section.
 
-       http://www.apache.org/licenses/LICENSE-2.0
+Use that was permitted under this section when it took place stays permitted. If the REAX subnet ends, entries already
+submitted and published may continue to be used and distributed for the purposes in items 1 to 3 for 12 months.
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+If you submit an entry based on the software to a competition of the REAX subnet, you grant the licensor a perpetual,
+irrevocable, worldwide, royalty-free, sublicensable copyright and patent license to use, change, distribute and license,
+including under these terms and under commercial licenses, your changes and new works contained in that entry. You
+confirm that you have the right to grant this license. Third-party components in the entry stay under their own licenses
+and are not covered by this grant.
+
+## Commercial Licenses
+
+Any use that is not a permitted purpose needs a separate written commercial license from the licensor. Contact the
+licensor at info@decisionmodels.io. As a non-binding guide, a commercial license currently costs about:
+
+- USD 1,000 per year for a company with more than 10 employees or at least 5,000,000 USD annual revenue; and
+- USD 10,000 per year for a company with at least 1,000 employees or at least 500,000,000 USD annual revenue,
+
+counted as in [Small Business](#small-business), plus VAT where applicable. These figures are not an offer and may change.
+Only a signed commercial license agreement grants rights beyond these terms, apart from written extensions under
+[Evaluation](#evaluation) and designations under [REAX Subnet](#reax-subnet). On request, you must tell the licensor in
+good faith whether your company meets the limits in [Small Business](#small-business).
+
+## Third-Party Components
+
+These terms cover only the licensor's own work in the software. Parts of the software are copied or adapted from
+third-party works under their own licenses, as listed in the `NOTICE` file and marked in the affected files. Those parts
+remain available under their original licenses (for example the Apache License 2.0 in `LICENSES/Apache-2.0.txt`), and
+nothing in these terms limits your rights under those licenses. Model weights and third-party dependencies are not part
+of the software.
+
+## Earlier Versions
+
+Versions of the software that the licensor published under the Apache License 2.0, that is commit
+`ffa8398af512a0ff4694fbfec3cfc16fe874cc28` of <https://github.com/reaxlabs/reax-engine> and its ancestors, stay
+available under the Apache License 2.0; that license cannot be revoked. These terms apply to the software from the first version that includes them. A later version of these terms
+applies only to versions of the software published with it.
+
+## Trademarks
+
+These terms grant no right to use the licensor's names, logos or trademarks, including "REAX" and "REAX Engine", except
+to state truthfully where the software comes from and to refer factually to the REAX subnet and its competitions.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from
+granting licenses to anyone else. Everyone who gets the software gets their licenses directly from the licensor. These
+terms do not imply any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or contributes to infringement of any patent, your patent
+license for the software granted under these terms ends immediately. If your company makes such a claim, your patent
+license ends immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have violated any of these terms, or done anything with the software
+not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms,
+and take practical steps to correct past violations, within 32 days of receiving notice. Otherwise, all your licenses end
+immediately.
+
+## No Liability
+
+The software comes as is, without any warranty or condition, as far as the law allows. The licensor is liable without
+limit for intent and gross negligence, for injury to life, body or health, under the German Product Liability Act
+(Produkthaftungsgesetz), for fraudulently concealed defects and under guarantees. For use free of charge, the licensor is
+otherwise not liable. Where a commercial license applies, the licensor's liability for slight negligence is limited to
+breaches of essential contractual obligations and to the foreseeable damage typical for the contract, unless that license
+says otherwise.
+
+## Governing Law
+
+These terms are governed by the laws of the Federal Republic of Germany, excluding the UN Convention on Contracts for the
+International Sale of Goods. If you are a merchant, a legal entity under public law or a special fund under public law,
+the courts of Passau, Germany, have exclusive jurisdiction; the licensor may also bring claims at your seat. Mandatory
+consumer protection rules on jurisdiction and applicable law are not affected.
+
+## Definitions
+
+The **licensor** is productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG, Reichenberger Str. 2, 94036
+Passau, Germany (Amtsgericht Passau, HRA 12725), and the **software** is the software the licensor makes available under
+these terms.
+
+**You** refers to the individual or entity agreeing to these terms.
+
+**Your company** is any legal entity, sole proprietorship, or other kind of organization that you work for or, if you are
+an organization, you, plus all
+organizations that have control over, are under the control of, or are under common control with that organization.
+**Control** means ownership of substantially all the assets of an entity, or the power to direct its management and
+policies by vote, contract, or otherwise. Control can be direct or indirect. Any organization, including a non-profit,
+university or public body, counts as a company under these terms.
+
+**Your licenses** are all the licenses granted to you for the software under these terms.
+
+**Use** means anything you do with the software requiring one of your licenses.
+
+## Origin of These Terms
+
+These terms are adapted from a widely used small-business source-available license (version 1.0.0, 2019). The licensor
+changed the thresholds and added the permitted purposes, commercial-license, third-party, earlier-versions, trademark,
+liability and governing-law sections.
