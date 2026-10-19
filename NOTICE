@@ -1,10 +1,11 @@
 REAX Engine
 Required Notice: Copyright 2026 productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG, Passau, Germany (https://github.com/reaxlabs/reax-engine)
-The licensor's own code is licensed under the REAX Engine License 1.0 (see LICENSE): free for individuals, organisations
-with no more than 10 employees and under USD 5M annual revenue, and for taking part in the REAX subnet (Bittensor netuid
-92); everyone else needs a commercial licence (info@decisionmodels.io). Versions up to and including commit
-ffa8398af512a0ff4694fbfec3cfc16fe874cc28 were
-released under the Apache License, Version 2.0 and stay available under it.
+The licensor's own code is licensed under the REAX Engine License 1.1 (see LICENSE): the MIT License with one additional
+condition (commercial use by an organisation that, together with its affiliates, has more than 10 employees or more than
+USD 5 million annual revenue requires a separate written licence, info@decisionmodels.io; mining and validating on
+Bittensor subnet 92 are exempt). Versions up to and including commit ffa8398af512a0ff4694fbfec3cfc16fe874cc28 were
+released under the Apache License, Version 2.0 and stay available under it. Commits published under the REAX Engine
+License 1.0 (tags license-1.0 to license-1.1) may also be used under License 1.1.
 
 The third-party parts listed below stay under their own licences; the Apache License 2.0 text is in
 LICENSES/Apache-2.0.txt. Files that contain copied or adapted third-party code say so in their header.
