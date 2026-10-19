@@ -20,6 +20,7 @@ readout, calibration, API and evaluation; for those models the REAX part is the 
 |---|---|---|---|
 | Plumb-4B (s1-fast) | native | 1.43-1.47x (`exact` mode, SN92 engine-competition scorer, c16) | bit-identical |
 | Perplexity Decider v1.1 27B | native, FP8 | 2.62x (P300, c32); 3.1x Decision-Index traffic (RESULTS.md) | 99.0 % top-1, score within noise |
+| Perplexity Decider v1.1 27B, shared-state mode (experimental, `engine/server.py --shared-state 1`) | native, FP8 | 5.8-6.0x Decision-Index traffic (gain comes from multi-question requests about one state; single-question requests ~3x) | approximation: no measurable DI change (-0.18 [-0.69, +0.33]), 2.1 % of multi-question top-1 answers differ ([docs](docs/models/pplx-shared-state.md)) |
 | d3 (vllm-sr/d3) | native, FP8 | 2.54x (P300, c32) | 100 % top-1 on P300, 99.4 % on DI-1000 |
 | Quyet-1.0-Large | vLLM-backed, FP8 + FP8 KV | 3.43x (P300, c32) | 99.0 % top-1, score within noise |
 | Rune 26B-A4B | vLLM-backed | 1.0x (`deterministic` preset) | bit-identical |

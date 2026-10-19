@@ -1,0 +1,2003 @@
+{
+ "model": "perplexity-ai/pplx-decider-v1.1-27b@6195aa55",
+ "gpu": "1x RTX PRO 6000 Blackwell Server Edition (RunPod)",
+ "main_pod": "4xmd3otqsv22i1",
+ "di5k_pod": "gyj0ei96ljvkxr",
+ "runs": {
+  "A-det": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "di-w4": 26.357592122194678,
+   "di-w16": 27.32247960084447
+  },
+  "A-r2": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/A-r2/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/A-r2/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 187.09820461273193,
+    "decisions_per_s": 27.413411104699474,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 72,
+     "decisions": 4356,
+     "rate": 0.01653
+    },
+    "single": {
+     "flips": 77,
+     "decisions": 773,
+     "rate": 0.09961
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 56.78,
+     "delta": -1.240000000000002,
+     "ci95": [
+      -3.1499999999999986,
+      0.6300000000000026
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 80.90890777703899,
+      "delta": -1.1549819339300598,
+      "ci95": [
+       -3.8453064520603846,
+       0.5570462840246933
+      ],
+      "p_le_0": 0.797
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.42057528011148,
+      "delta": -0.9160147991957359,
+      "ci95": [
+       -4.081065435220324,
+       2.910265553906754
+      ],
+      "p_le_0": 0.673
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 83.66474152857523,
+      "delta": -1.035498366562905,
+      "ci95": [
+       -3.24294214751464,
+       1.2761711724039628
+      ],
+      "p_le_0": 0.789
+     }
+    }
+   },
+   "p300_items_per_s": 32.02470248543003
+  },
+  "A-r3": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/A-r3/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/A-r3/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 187.93103671073914,
+    "decisions_per_s": 27.291926281950364,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 73,
+     "decisions": 4356,
+     "rate": 0.01676
+    },
+    "single": {
+     "flips": 80,
+     "decisions": 773,
+     "rate": 0.10349
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.45,
+     "delta": 0.4299999999999997,
+     "ci95": [
+      -1.4399999999999977,
+      2.3200000000000003
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 80.13091874470621,
+      "delta": -1.9329709662628431,
+      "ci95": [
+       -5.485395242679132,
+       0.6454581081052595
+      ],
+      "p_le_0": 0.894
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 87.33857566415139,
+      "delta": 0.001985584844177879,
+      "ci95": [
+       -3.4765498706494498,
+       2.2426620807696906
+      ],
+      "p_le_0": 0.664
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 83.7347472044288,
+      "delta": -0.9654926907093397,
+      "ci95": [
+       -3.8233335905131867,
+       0.8378835020556608
+      ],
+      "p_le_0": 0.858
+     }
+    }
+   },
+   "p300_items_per_s": 32.667158862571576
+  },
+  "B-det": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "di-w4": 44.6519755907873,
+   "di-w16": 47.039355596201915
+  },
+  "B-r2": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/B-r2/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/B-r2/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 109.78719663619995,
+    "decisions_per_s": 46.7176515764027,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 111,
+     "decisions": 4356,
+     "rate": 0.02548
+    },
+    "single": {
+     "flips": 76,
+     "decisions": 773,
+     "rate": 0.09832
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 57.75,
+     "delta": -0.2700000000000031,
+     "ci95": [
+      -2.0,
+      1.490000000000002
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 80.70939450553196,
+      "delta": -1.3544952054370896,
+      "ci95": [
+       -4.1415623310866465,
+       0.3120575458628423
+      ],
+      "p_le_0": 0.883
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 89.17837828328818,
+      "delta": 1.8417882039809683,
+      "ci95": [
+       -2.8726760851772895,
+       3.3389913296860527
+      ],
+      "p_le_0": 0.444
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.94388639441007,
+      "delta": 0.24364649927193227,
+      "ci95": [
+       -2.6661942219537877,
+       1.3179549346804578
+      ],
+      "p_le_0": 0.692
+     }
+    }
+   },
+   "p300_items_per_s": 32.888309547362944
+  },
+  "B-r3": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/B-r3/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/B-r3/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 109.57531833648682,
+    "decisions_per_s": 46.807986304449784,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 110,
+     "decisions": 4356,
+     "rate": 0.02525
+    },
+    "single": {
+     "flips": 76,
+     "decisions": 773,
+     "rate": 0.09832
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 57.41,
+     "delta": -0.6100000000000065,
+     "ci95": [
+      -2.509999999999998,
+      1.0899999999999963
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.07416375897108,
+      "delta": -0.9897259519979684,
+      "ci95": [
+       -3.5741915203221595,
+       0.5850616311463455
+      ],
+      "p_le_0": 0.711
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.12290424897994,
+      "delta": -1.2136858303272788,
+      "ci95": [
+       -4.483429745043338,
+       2.4835193652408947
+      ],
+      "p_le_0": 0.735
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 83.59853400397552,
+      "delta": -1.1017058911626236,
+      "ci95": [
+       -3.2923107791070407,
+       1.2600507201989046
+      ],
+      "p_le_0": 0.814
+     }
+    }
+   },
+   "p300_items_per_s": 31.83329246307693
+  },
+  "Bmid-det": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "di-w4": 41.86186593245535,
+   "di-w16": 43.48000379473577
+  },
+  "Bmid-indep": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 4,
+    "mean_max_abs_dp": 0.04126397039466224,
+    "p95_max_abs_dp": 0.19435278992209437
+   },
+   "di-w4": 41.69773496494323,
+   "di-w16": 43.50688607074593
+  },
+  "Bmid-r1": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/Bmid-r1/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/Bmid-r1/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 118.15137028694153,
+    "decisions_per_s": 43.41041485633006,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 97,
+     "decisions": 4356,
+     "rate": 0.02227
+    },
+    "single": {
+     "flips": 68,
+     "decisions": 773,
+     "rate": 0.08797
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.59,
+     "delta": 0.5700000000000003,
+     "ci95": [
+      -0.8100000000000023,
+      2.190000000000005
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.99935232472606,
+      "delta": -0.06453738624298921,
+      "ci95": [
+       -1.4347475144216446,
+       1.4038929111250695
+      ],
+      "p_le_0": 0.586
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.88175572581437,
+      "delta": -0.45483435349284207,
+      "ci95": [
+       -3.064366095764811,
+       2.92920312052928
+      ],
+      "p_le_0": 0.569
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.44055402527022,
+      "delta": -0.25968586986792275,
+      "ci95": [
+       -1.6776107190692926,
+       1.4935796650442654
+      ],
+      "p_le_0": 0.598
+     }
+    }
+   },
+   "p300_items_per_s": 29.477055619092777
+  },
+  "Bmid-r2": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/Bmid-r2/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/Bmid-r2/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 117.57685708999634,
+    "decisions_per_s": 43.62253020655359,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 99,
+     "decisions": 4356,
+     "rate": 0.02273
+    },
+    "single": {
+     "flips": 61,
+     "decisions": 773,
+     "rate": 0.07891
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.16,
+     "delta": 0.13999999999999346,
+     "ci95": [
+      -1.3400000000000034,
+      1.5700000000000003
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.99935232472606,
+      "delta": -0.06453738624298921,
+      "ci95": [
+       -1.4347475144216446,
+       1.4038929111250695
+      ],
+      "p_le_0": 0.586
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.8704109035271,
+      "delta": -0.4661791757801126,
+      "ci95": [
+       -3.064366095764811,
+       2.96817540467444
+      ],
+      "p_le_0": 0.569
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.43488161412658,
+      "delta": -0.265358281011558,
+      "ci95": [
+       -1.6771005918243986,
+       1.4949419472846017
+      ],
+      "p_le_0": 0.598
+     }
+    }
+   },
+   "p300_items_per_s": 29.452053159279682
+  },
+  "Bmid-r3": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/Bmid-r3/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/Bmid-r3/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 119.45161652565002,
+    "decisions_per_s": 42.937886896646916,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 99,
+     "decisions": 4356,
+     "rate": 0.02273
+    },
+    "single": {
+     "flips": 72,
+     "decisions": 773,
+     "rate": 0.09314
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 57.09,
+     "delta": -0.9299999999999997,
+     "ci95": [
+      -2.780000000000001,
+      1.0700000000000003
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.99935232472606,
+      "delta": -0.06453738624298921,
+      "ci95": [
+       -1.4347475144216446,
+       1.4038929111250695
+      ],
+      "p_le_0": 0.586
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.8704109035271,
+      "delta": -0.4661791757801126,
+      "ci95": [
+       -3.064366095764811,
+       2.96817540467444
+      ],
+      "p_le_0": 0.569
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.43488161412658,
+      "delta": -0.265358281011558,
+      "ci95": [
+       -1.6771005918243986,
+       1.4949419472846017
+      ],
+      "p_le_0": 0.598
+     }
+    }
+   },
+   "p300_items_per_s": 29.41644224871209
+  },
+  "C-det": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 10,
+    "mean_max_abs_dp": 0.03797783057764059,
+    "p95_max_abs_dp": 0.17269653946257826
+   },
+   "di-w4": 31.035425368405235,
+   "di-w16": 31.772244832426384
+  },
+  "C-di5k-main": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --shared-until 64 --shared-mixq 1 --warm-steps 120",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-di5k-main/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-di5k-main/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 789.6189739704132,
+    "decisions_per_s": 32.3054547077738,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 85,
+     "decisions": 4356,
+     "rate": 0.01951
+    },
+    "single": {
+     "flips": 23,
+     "decisions": 773,
+     "rate": 0.02975
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.7,
+     "b": 58.52,
+     "delta": -0.17999999999999972,
+     "ci95": [
+      -0.6900000000000048,
+      0.3299999999999983
+     ]
+    }
+   }
+  },
+  "C-r1": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-r1/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-r1/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 160.36519813537598,
+    "decisions_per_s": 31.983248607782322,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 82,
+     "decisions": 4356,
+     "rate": 0.01882
+    },
+    "single": {
+     "flips": 21,
+     "decisions": 773,
+     "rate": 0.02717
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.3,
+     "delta": 0.27999999999999403,
+     "ci95": [
+      -0.9200000000000017,
+      1.5399999999999991
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.72318971665939,
+      "delta": -0.34069999430965936,
+      "ci95": [
+       -1.501871739674968,
+       0.3009575782241143
+      ],
+      "p_le_0": 0.65
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 88.31065475250846,
+      "delta": 0.9740646732012408,
+      "ci95": [
+       -1.8861219288489366,
+       3.5555806766225544
+      ],
+      "p_le_0": 0.305
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 85.01692223458392,
+      "delta": 0.3166823394457765,
+      "ci95": [
+       -1.2727174355325985,
+       1.675776343458125
+      ],
+      "p_le_0": 0.412
+     }
+    }
+   },
+   "p300_items_per_s": 21.509867898264364
+  },
+  "C-r2": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-r2/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-r2/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 161.08211421966553,
+    "decisions_per_s": 31.840903162008733,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 84,
+     "decisions": 4356,
+     "rate": 0.01928
+    },
+    "single": {
+     "flips": 27,
+     "decisions": 773,
+     "rate": 0.03493
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.47,
+     "delta": 0.44999999999999574,
+     "ci95": [
+      -0.6199999999999974,
+      1.6000000000000014
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.72318971665939,
+      "delta": -0.34069999430965936,
+      "ci95": [
+       -1.501871739674968,
+       0.3009575782241143
+      ],
+      "p_le_0": 0.65
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 88.31065475250846,
+      "delta": 0.9740646732012408,
+      "ci95": [
+       -1.8861219288489366,
+       3.5555806766225544
+      ],
+      "p_le_0": 0.305
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 85.01692223458392,
+      "delta": 0.3166823394457765,
+      "ci95": [
+       -1.2727174355325985,
+       1.675776343458125
+      ],
+      "p_le_0": 0.412
+     }
+    }
+   },
+   "p300_items_per_s": 21.35939558819388
+  },
+  "C-r3": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-r3/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-r3/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 161.6625461578369,
+    "decisions_per_s": 31.726581832952046,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 83,
+     "decisions": 4356,
+     "rate": 0.01905
+    },
+    "single": {
+     "flips": 22,
+     "decisions": 773,
+     "rate": 0.02846
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.47,
+     "delta": 0.44999999999999574,
+     "ci95": [
+      -0.6800000000000068,
+      1.6300000000000026
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.72318971665939,
+      "delta": -0.34069999430965936,
+      "ci95": [
+       -1.501871739674968,
+       0.3009575782241143
+      ],
+      "p_le_0": 0.65
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 88.31065475250846,
+      "delta": 0.9740646732012408,
+      "ci95": [
+       -1.8861219288489366,
+       3.5555806766225544
+      ],
+      "p_le_0": 0.305
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 85.01692223458392,
+      "delta": 0.3166823394457765,
+      "ci95": [
+       -1.2727174355325985,
+       1.675776343458125
+      ],
+      "p_le_0": 0.412
+     }
+    }
+   },
+   "p300_items_per_s": 21.29662072411454
+  },
+  "C-r4-flags": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --shared-until 64 --shared-mixq 1 --warm-steps 120",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-r4-flags/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-r4-flags/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 161.5396933555603,
+    "decisions_per_s": 31.750710264818366,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 81,
+     "decisions": 4356,
+     "rate": 0.0186
+    },
+    "single": {
+     "flips": 21,
+     "decisions": 773,
+     "rate": 0.02717
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.37,
+     "delta": 0.3499999999999943,
+     "ci95": [
+      -0.7000000000000028,
+      1.5100000000000051
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.72318971665939,
+      "delta": -0.34069999430965936,
+      "ci95": [
+       -1.501871739674968,
+       0.3009575782241143
+      ],
+      "p_le_0": 0.65
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 88.31065475250846,
+      "delta": 0.9740646732012408,
+      "ci95": [
+       -1.8861219288489366,
+       3.5555806766225544
+      ],
+      "p_le_0": 0.305
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 85.01692223458392,
+      "delta": 0.3166823394457765,
+      "ci95": [
+       -1.2727174355325985,
+       1.675776343458125
+      ],
+      "p_le_0": 0.412
+     }
+    }
+   },
+   "p300_items_per_s": 21.27195768516001
+  },
+  "fp8-indep": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1",
+   "env": "",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 2,
+    "mean_max_abs_dp": 0.00745281893015504,
+    "p95_max_abs_dp": 0.042389606410560804
+   },
+   "di-w4": 15.851933656525317,
+   "di-w16": 16.11266692459265
+  },
+  "ladder-a4": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ladder-a4/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ladder-a4/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 208.77423810958862,
+    "decisions_per_s": 24.56720736448198,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 63,
+     "decisions": 4356,
+     "rate": 0.01446
+    },
+    "single": {
+     "flips": 75,
+     "decisions": 773,
+     "rate": 0.09702
+    }
+   }
+  },
+  "ladder-bf16": {
+   "pod": "main",
+   "args": "--linear bf16 --compile 1 --gva 1",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ladder-bf16/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ladder-bf16/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 527.6249797344208,
+    "decisions_per_s": 9.720919586827891,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 4,
+     "decisions": 4356,
+     "rate": 0.00092
+    },
+    "single": {
+     "flips": 6,
+     "decisions": 773,
+     "rate": 0.00776
+    }
+   }
+  },
+  "ladder-fp8": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ladder-fp8/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ladder-fp8/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 316.4043598175049,
+    "decisions_per_s": 16.210269678200056,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 20,
+     "decisions": 4356,
+     "rate": 0.00459
+    },
+    "single": {
+     "flips": 21,
+     "decisions": 773,
+     "rate": 0.02717
+    }
+   }
+  },
+  "mid-indep": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "env": "",
+   "determinism": {
+    "requests": 60,
+    "multi_question_requests": 15,
+    "repeats": 3,
+    "answers": 304,
+    "bit_identical_answers": 304,
+    "max_abs_dp": 0.0
+   },
+   "indep": {
+    "requests": 40,
+    "questions": 108,
+    "top1_flips_alone_vs_in_request": 2,
+    "mean_max_abs_dp": 0.014812953823372867,
+    "p95_max_abs_dp": 0.07949650508676037
+   },
+   "di-w4": 22.026115802079833,
+   "di-w16": 22.595849943265446
+  },
+  "nv-ar2": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 228.03427004814148,
+    "decisions_per_s": 22.49223328983486,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 53,
+     "decisions": 4356,
+     "rate": 0.01217
+    },
+    "single": {
+     "flips": 76,
+     "decisions": 773,
+     "rate": 0.09832
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 56.83,
+     "delta": -1.1900000000000048,
+     "ci95": [
+      -3.009999999999998,
+      0.5599999999999952
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.99935232472606,
+      "delta": -0.06453738624298921,
+      "ci95": [
+       -1.4347475144216446,
+       1.4038929111250695
+      ],
+      "p_le_0": 0.586
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.88175572581437,
+      "delta": -0.45483435349284207,
+      "ci95": [
+       -3.064366095764811,
+       2.92920312052928
+      ],
+      "p_le_0": 0.569
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.44055402527022,
+      "delta": -0.25968586986792275,
+      "ci95": [
+       -1.6776107190692926,
+       1.4935796650442654
+      ],
+      "p_le_0": 0.598
+     }
+    }
+   },
+   "p300_items_per_s": 29.740648996410936
+  },
+  "nv-ar2-idle": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "env": "",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 223.70988774299622,
+    "decisions_per_s": 22.927015214867613,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 54,
+     "decisions": 4356,
+     "rate": 0.0124
+    },
+    "single": {
+     "flips": 66,
+     "decisions": 773,
+     "rate": 0.08538
+    }
+   }
+  },
+  "ref": {
+   "pod": "main",
+   "args": "--backend ref",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 978.414258480072,
+    "decisions_per_s": 5.242155820549569,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "p300_items_per_s": 8.833588042870447
+  },
+  "ref-di5k-main": {
+   "pod": "main",
+   "args": "--backend ref",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ref-di5k-main/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ref-di5k-main/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 4547.123538732529,
+    "decisions_per_s": 5.609920157812649,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 4,
+     "decisions": 4356,
+     "rate": 0.00092
+    },
+    "single": {
+     "flips": 5,
+     "decisions": 773,
+     "rate": 0.00647
+    }
+   }
+  },
+  "ref-r2": {
+   "pod": "main",
+   "args": "--backend ref",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ref-r2/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ref-r2/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 972.1187036037445,
+    "decisions_per_s": 5.276104637207644,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 0,
+     "decisions": 4356,
+     "rate": 0.0
+    },
+    "single": {
+     "flips": 0,
+     "decisions": 773,
+     "rate": 0.0
+    }
+   },
+   "p300_items_per_s": 8.92091374929017
+  },
+  "ref-r3": {
+   "pod": "main",
+   "args": "--backend ref",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ref-r3/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ref-r3/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 971.2588624954224,
+    "decisions_per_s": 5.280775494621727,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 0,
+     "decisions": 4356,
+     "rate": 0.0
+    },
+    "single": {
+     "flips": 0,
+     "decisions": 773,
+     "rate": 0.0
+    }
+   },
+   "p300_items_per_s": 8.973278597496199
+  },
+  "ref-r4": {
+   "pod": "main",
+   "args": "--backend ref",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ref-r4/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ref-r4/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 971.7974538803101,
+    "decisions_per_s": 5.2778487734458555,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 0,
+     "decisions": 4356,
+     "rate": 0.0
+    },
+    "single": {
+     "flips": 0,
+     "decisions": 773,
+     "rate": 0.0
+    }
+   },
+   "p300_items_per_s": 8.956396996301109
+  },
+  "ref-r5": {
+   "pod": "main",
+   "args": "--backend ref",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ref-r5/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ref-r5/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 973.0694382190704,
+    "decisions_per_s": 5.270949634783711,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 0,
+     "decisions": 4356,
+     "rate": 0.0
+    },
+    "single": {
+     "flips": 0,
+     "decisions": 773,
+     "rate": 0.0
+    }
+   },
+   "p300_items_per_s": 8.93760808416034
+  },
+  "sh16": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 195.09986662864685,
+    "decisions_per_s": 26.28910049314662,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 56,
+     "decisions": 4356,
+     "rate": 0.01286
+    },
+    "single": {
+     "flips": 66,
+     "decisions": 773,
+     "rate": 0.08538
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 57.66,
+     "delta": -0.36000000000000654,
+     "ci95": [
+      -1.8500000000000014,
+      1.6400000000000006
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.99935232472606,
+      "delta": -0.06453738624298921,
+      "ci95": [
+       -1.4347475144216446,
+       1.4038929111250695
+      ],
+      "p_le_0": 0.586
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.88175572581437,
+      "delta": -0.45483435349284207,
+      "ci95": [
+       -3.064366095764811,
+       2.92920312052928
+      ],
+      "p_le_0": 0.569
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.44055402527022,
+      "delta": -0.25968586986792275,
+      "ci95": [
+       -1.6776107190692926,
+       1.4935796650442654
+      ],
+      "p_le_0": 0.598
+     }
+    }
+   },
+   "p300_items_per_s": 30.14407666188442
+  },
+  "sh16-all": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv,o --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 527.3769421577454,
+    "decisions_per_s": 9.725491560201448,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 72,
+     "decisions": 4356,
+     "rate": 0.01653
+    },
+    "single": {
+     "flips": 76,
+     "decisions": 773,
+     "rate": 0.09832
+    }
+   },
+   "p300_items_per_s": 31.5016445535659
+  },
+  "sh16-all-b": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv,o --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 180.16494822502136,
+    "decisions_per_s": 28.468356639461366,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 79,
+     "decisions": 4356,
+     "rate": 0.01814
+    },
+    "single": {
+     "flips": 65,
+     "decisions": 773,
+     "rate": 0.08409
+    }
+   }
+  },
+  "sh16-all-cold": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv,o --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 526.7768337726593,
+    "decisions_per_s": 9.736570918024688,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 78,
+     "decisions": 4356,
+     "rate": 0.01791
+    },
+    "single": {
+     "flips": 76,
+     "decisions": 773,
+     "rate": 0.09832
+    }
+   },
+   "p300_items_per_s": 29.710091887300802
+  },
+  "sh16a4-c1": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/sh16a4-c1/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/sh16a4-c1/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 188.47448992729187,
+    "decisions_per_s": 27.213231891374917,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 64,
+     "decisions": 4356,
+     "rate": 0.01469
+    },
+    "single": {
+     "flips": 75,
+     "decisions": 773,
+     "rate": 0.09702
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.72,
+     "delta": 0.6999999999999957,
+     "ci95": [
+      -1.0800000000000054,
+      2.440000000000005
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.07416375897108,
+      "delta": -0.9897259519979684,
+      "ci95": [
+       -3.5741915203221595,
+       0.5850616311463455
+      ],
+      "p_le_0": 0.711
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.11710061343732,
+      "delta": -1.2194894658698985,
+      "ci95": [
+       -4.489233380585944,
+       2.4760046288676136
+      ],
+      "p_le_0": 0.735
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 83.5956321862042,
+      "delta": -1.1046077089339406,
+      "ci95": [
+       -3.2951686299424097,
+       1.244896688868323
+      ],
+      "p_le_0": 0.813
+     }
+    }
+   },
+   "p300_items_per_s": 31.762762337122567
+  },
+  "sh32mq-c1": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=32",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/sh32mq-c1/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/sh32mq-c1/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 167.1047191619873,
+    "decisions_per_s": 30.693328265780874,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 104,
+     "decisions": 4356,
+     "rate": 0.02388
+    },
+    "single": {
+     "flips": 73,
+     "decisions": 773,
+     "rate": 0.09444
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 57.93,
+     "delta": -0.09000000000000341,
+     "ci95": [
+      -1.9100000000000037,
+      1.5500000000000043
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.07416375897108,
+      "delta": -0.9897259519979684,
+      "ci95": [
+       -3.5741915203221595,
+       0.5850616311463455
+      ],
+      "p_le_0": 0.711
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.12290424897994,
+      "delta": -1.2136858303272788,
+      "ci95": [
+       -4.483429745043338,
+       2.4835193652408947
+      ],
+      "p_le_0": 0.735
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 83.59853400397552,
+      "delta": -1.1017058911626236,
+      "ci95": [
+       -3.2923107791070407,
+       1.2600507201989046
+      ],
+      "p_le_0": 0.814
+     }
+    }
+   },
+   "p300_items_per_s": 32.00329216809133
+  },
+  "sh64mq-c1": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/sh64mq-c1/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/sh64mq-c1/inductor",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 109.58273720741272,
+    "decisions_per_s": 46.80481735268289,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 112,
+     "decisions": 4356,
+     "rate": 0.02571
+    },
+    "single": {
+     "flips": 78,
+     "decisions": 773,
+     "rate": 0.10091
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.03,
+     "delta": 0.00999999999999801,
+     "ci95": [
+      -1.6400000000000006,
+      1.519999999999996
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.335781226132,
+      "delta": -0.7281084848370512,
+      "ci95": [
+       -3.6036947922847844,
+       1.3306565473720298
+      ],
+      "p_le_0": 0.689
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.59688881440032,
+      "delta": -0.7397012649068984,
+      "ci95": [
+       -3.6063482978139376,
+       2.847804039790134
+      ],
+      "p_le_0": 0.643
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 83.96633502026616,
+      "delta": -0.7339048748719819,
+      "ci95": [
+       -2.967534752689332,
+       1.5138084386864534
+      ],
+      "p_le_0": 0.73
+     }
+    }
+   },
+   "p300_items_per_s": 33.042032027493015
+  },
+  "sh8": {
+   "pod": "main",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=8",
+   "di": {
+    "rows": 1000,
+    "questions": 5129,
+    "wall_s": 207.74094891548157,
+    "decisions_per_s": 24.689402964490693,
+    "status": {
+     "ok": 1000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 54,
+     "decisions": 4356,
+     "rate": 0.0124
+    },
+    "single": {
+     "flips": 63,
+     "decisions": 773,
+     "rate": 0.0815
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.02,
+     "b": 58.39,
+     "delta": 0.36999999999999744,
+     "ci95": [
+      -1.3500000000000014,
+      1.8800000000000026
+     ]
+    },
+    "p300": {
+     "intelligence": {
+      "a": 82.06388971096905,
+      "b": 81.99935232472606,
+      "delta": -0.06453738624298921,
+      "ci95": [
+       -1.4347475144216446,
+       1.4038929111250695
+      ],
+      "p_le_0": 0.586
+     },
+     "calibration": {
+      "a": 87.33659007930721,
+      "b": 86.88175572581437,
+      "delta": -0.45483435349284207,
+      "ci95": [
+       -3.064366095764811,
+       2.92920312052928
+      ],
+      "p_le_0": 0.569
+     },
+     "capability": {
+      "a": 84.70023989513814,
+      "b": 84.44055402527022,
+      "delta": -0.25968586986792275,
+      "ci95": [
+       -1.6776107190692926,
+       1.4935796650442654
+      ],
+      "p_le_0": 0.598
+     }
+    }
+   },
+   "p300_items_per_s": 30.163944329478014
+  },
+  "A-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_UNTIL=16",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/A-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/A-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 1030.971318244934,
+    "decisions_per_s": 24.74268638571347,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 385,
+     "decisions": 21620,
+     "rate": 0.01781
+    },
+    "single": {
+     "flips": 323,
+     "decisions": 3889,
+     "rate": 0.08305
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 58.05,
+     "delta": -0.6300000000000026,
+     "ci95": [
+      -1.4200000000000017,
+      0.19999999999999574
+     ]
+    }
+   }
+  },
+  "B-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/B-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/B-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 588.1189835071564,
+    "decisions_per_s": 43.373876231440505,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 560,
+     "decisions": 21620,
+     "rate": 0.0259
+    },
+    "single": {
+     "flips": 328,
+     "decisions": 3889,
+     "rate": 0.08434
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 58.22,
+     "delta": -0.46000000000000085,
+     "ci95": [
+      -1.3700000000000045,
+      0.28000000000000114
+     ]
+    }
+   }
+  },
+  "Bmid-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/Bmid-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/Bmid-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 626.1953125,
+    "decisions_per_s": 40.73649146008259,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 542,
+     "decisions": 21620,
+     "rate": 0.02507
+    },
+    "single": {
+     "flips": 271,
+     "decisions": 3889,
+     "rate": 0.06968
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 58.18,
+     "delta": -0.5,
+     "ci95": [
+      -1.25,
+      0.19999999999999574
+     ]
+    }
+   }
+  },
+  "C-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1 --shared-state 1 --warm-steps 120",
+   "env": "PPLX_SHARED_MIXQ=1\nPPLX_SHARED_UNTIL=64",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/C-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/C-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 864.6118819713593,
+    "decisions_per_s": 29.50341133623815,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 459,
+     "decisions": 21620,
+     "rate": 0.02123
+    },
+    "single": {
+     "flips": 90,
+     "decisions": 3889,
+     "rate": 0.02314
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 58.64,
+     "delta": -0.03999999999999915,
+     "ci95": [
+      -0.5399999999999991,
+      0.4100000000000037
+     ]
+    }
+   }
+  },
+  "a4-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu,down,in_qkvz,out,qkv@4-59,o@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/a4-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/a4-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 1150.2740416526794,
+    "decisions_per_s": 22.17645454586581,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 353,
+     "decisions": 21620,
+     "rate": 0.01633
+    },
+    "single": {
+     "flips": 322,
+     "decisions": 3889,
+     "rate": 0.0828
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 57.77,
+     "delta": -0.9099999999999966,
+     "ci95": [
+      -1.7199999999999989,
+      -0.14000000000000057
+     ]
+    }
+   }
+  },
+  "fp8-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/fp8-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/fp8-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 1773.9883742332458,
+    "decisions_per_s": 14.37946289305617,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 125,
+     "decisions": 21620,
+     "rate": 0.00578
+    },
+    "single": {
+     "flips": 106,
+     "decisions": 3889,
+     "rate": 0.02726
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 58.48,
+     "delta": -0.20000000000000284,
+     "ci95": [
+      -0.6400000000000006,
+      0.240000000000002
+     ]
+    }
+   }
+  },
+  "mid-di5k": {
+   "pod": "di5k",
+   "args": "--linear fp8 --compile 1 --gva 1 --nvfp4 gu@4-59,down@4-59,in_qkvz@4-59,out@4-59 --nvfp4-scales engine/scales/nvfp4-act-amax-max512.json",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/mid-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/mid-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 1247.0516068935394,
+    "decisions_per_s": 20.455448562825755,
+    "status": {
+     "ok": 5000
+    }
+   },
+   "flips_vs_ref": {
+    "multi": {
+     "flips": 319,
+     "decisions": 21620,
+     "rate": 0.01475
+    },
+    "single": {
+     "flips": 279,
+     "decisions": 3889,
+     "rate": 0.07174
+    }
+   },
+   "paired_vs_ref": {
+    "di_index": {
+     "a": 58.68,
+     "b": 57.98,
+     "delta": -0.7000000000000028,
+     "ci95": [
+      -1.4499999999999957,
+      0.0
+     ]
+    }
+   }
+  },
+  "ref-di5k": {
+   "pod": "di5k",
+   "args": "--backend ref",
+   "env": "",
+   "caches": "TRITON_CACHE_DIR=/workspace/cold/ref-di5k/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/ref-di5k/inductor",
+   "di": {
+    "rows": 5000,
+    "questions": 25509,
+    "wall_s": 4879.448321580887,
+    "decisions_per_s": 5.22784510027055,
+    "status": {
+     "ok": 5000
+    }
+   }
+  }
+ }
+}

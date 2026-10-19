@@ -14,7 +14,7 @@ Usage: server.py --model ./model --backend engine [--linear fp8 --compile 1 --bu
 """
 from __future__ import annotations
 
-import argparse, json, queue, sys, threading, time
+import argparse, json, os, queue, sys, threading, time
 from concurrent.futures import Future
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -58,10 +58,20 @@ class EngineBackend:
         self.eng = PplxEngine(a.model, linear_mode=a.linear, compile=a.compile, fp8_skip=tuple(x for x in a.fp8_skip.split(",") if x),
                               gva_native=a.gva, nvfp4_groups=tuple(g for g in a.nvfp4.split(",") if g), nvfp4_scales=a.nvfp4_scales or None)
         self.budget = a.budget
+        self.shared = a.shared_state == "1"  # encode a request's common prefix (system + state) once, see forward_groups
+        self.shared_min = a.shared_min
+        if a.shared_until is not None:
+            self.eng.shared_until = a.shared_until
+        if a.shared_mixq is not None:
+            self.eng.shared_mixq = a.shared_mixq == "1"
+        if self.shared:
+            print(f"shared-state mode: until layer {self.eng.shared_until} of {self.eng.n_layers}, "
+                  f"state rows see {'all questions' if self.eng.shared_mixq else 'the state only'} (approximation)", flush=True)
         self.max_wait = a.max_wait_ms / 1000
         a_warm_steps = a.warm_steps
         self.q: queue.Queue = queue.Queue()
         self.steps = self.decisions = 0
+        self.idle_s, self.step_tokens = 0.0, 0
         threading.Thread(target=self._loop, daemon=True).start()
         # Warm-up: trigger every torch.compile specialization / Triton autotune BEFORE serving (otherwise the first
         # requests of each new batch shape stall the GPU loop for seconds). Covers 1..many sequences per step, short
@@ -100,12 +110,54 @@ class EngineBackend:
                 self.q.put(([1] * L, rng.randint(2, 12), f))
             for f in fs:
                 f.result()
+        # Deterministic sweep over every step size bucket (fla's conv kernel specialises and re-autotunes per 1024-token
+        # bucket of the step, NB = cdiv(T, 1024), and per conv path): otherwise a step size first seen while serving
+        # stalls the GPU loop for tens of seconds (measured: 45 s stalls with fresh Triton caches).
+        for T in range(512, self.budget + 1, 512):
+            for n_seq in (1, 3, 9):
+                lens = [max(16, T // n_seq)] * n_seq
+                if max(lens) > MAX_TOKENS:
+                    continue
+                fs = []
+                for L in lens:
+                    f = Future()
+                    fs.append(f)
+                    self.q.put(([1] * L, 2, f))
+                for f in fs:
+                    f.result()
+                if self.shared and n_seq > 1:  # one shared group of this full size: prefix + n_seq suffixes
+                    P = T // n_seq - 40 if self.eng.shared_until < self.eng.n_layers else T - 40 * n_seq
+                    if P < 64:
+                        continue
+                    subs = [([1] * 40, 2, Future()) for _ in range(n_seq)]
+                    self.q.put(([0] * T, None, ([1] * P, subs)))
+                    for x in subs:
+                        x[2].result()
+        if self.shared:  # the suffix-path kernels (conv/DeltaNet/attention on short continuation sequences) too
+            for _ in range(max(40, a_warm_steps // 2)):
+                items, tot = [], 0
+                for _ in range(rng.choice([1, 2, 3, 4, 6, 8, 12])):
+                    P = int(min(MAX_TOKENS - 600, max(64, rng.lognormvariate(6.8, 0.8))))
+                    subs = [([1] * int(max(8, rng.lognormvariate(4.5, 0.7))), rng.randint(2, 12), Future())
+                            for _ in range(rng.choice([1, 2, 3, 5, 8, 12, 32, 64]))]
+                    n = (P * len(subs) if self.eng.shared_until < self.eng.n_layers else P) + sum(len(x[0]) for x in subs)
+                    if tot + n > self.budget:
+                        break
+                    items.append(([0] * n, None, ([1] * P, subs)))
+                    tot += n
+                for it in items or []:
+                    self.q.put(it)
+                for it in items:
+                    for x in it[2][1]:
+                        x[2].result()
         print(f"warm-up done in {time.time() - t0:.0f}s ({self.steps} steps)", flush=True)
 
     def _loop(self):
         carry = None
         while True:
+            t_idle = time.perf_counter()
             batch = [carry] if carry else [self.q.get()]
+            self.idle_s += time.perf_counter() - t_idle
             carry = None
             n = len(batch[0][0])
             deadline = time.perf_counter() + self.max_wait
@@ -119,6 +171,10 @@ class EngineBackend:
                     break
                 batch.append(item)
                 n += len(item[0])
+            self.step_tokens += n
+            if self.shared:
+                self._run_groups(batch)
+                continue
             try:
                 ids = torch.tensor([t for b in batch for t in b[0]], device="cuda")
                 logits = self.eng.forward(ids, [len(b[0]) for b in batch])
@@ -132,11 +188,63 @@ class EngineBackend:
             self.steps += 1
             self.decisions += len(batch)
 
+    def _run_groups(self, batch):
+        """shared-state step: queue items are (ids, n, fut) single decisions or (tokens, None, [(prefix, [(suffix, n, fut)...])])
+        request groups whose questions share a token prefix (see PplxEngine.forward_groups)."""
+        groups, counts, futs = [], [], []
+        for b in batch:
+            if b[1] is None:
+                prefix, subs = b[2]
+                groups.append((prefix, [x[0] for x in subs]))
+                counts += [x[1] for x in subs]
+                futs += [x[2] for x in subs]
+            else:
+                groups.append((b[0], []))
+                counts.append(b[1])
+                futs.append(b[2])
+        try:
+            probs = self.eng.probs(self.eng.forward_groups(groups), counts)
+            for f, p in zip(futs, probs):
+                f.set_result(p)
+        except Exception as e:  # noqa: BLE001
+            for f in futs:
+                if not f.done():
+                    f.set_exception(e)
+        self.steps += 1
+        self.decisions += len(futs)
+
     def decide(self, state, questions):
         enc = {k: self.pr.ids(state, q) for k, q in questions.items()}
         if any(len(ids) > MAX_TOKENS for ids, _ in enc.values()):
             raise Capacity(f"maximum context length exceeded: a question branch is longer than {MAX_TOKENS} tokens")
         futs = {}
+        if self.shared and len(enc) >= 2:
+            seqs = [ids for ids, _ in enc.values()]
+            m = min(map(len, seqs)) - 1  # every suffix keeps >= 1 token
+            k = 0
+            while k < m and all(x[k] == seqs[0][k] for x in seqs):
+                k += 1
+            if k >= self.shared_min:
+                # partial sharing (PPLX_SHARED_UNTIL < layers): the step expands to full sequences after the switch layer,
+                # so the full token count is what the step budget has to bound. A request larger than the budget is split
+                # into several shared groups (same prefix) so that no step exceeds the budget (kernel shapes stay inside
+                # the warmed-up range, no int32 offset overflow).
+                full = self.eng.shared_until < self.eng.n_layers
+                cost = (lambda n_sfx: k + n_sfx) if full else (lambda n_sfx: n_sfx)
+                chunks, cur, tot = [], [], 0 if full else k
+                for key, (ids, n) in enc.items():
+                    futs[key] = Future()
+                    c = cost(len(ids) - k)
+                    if cur and tot + c > self.budget:
+                        chunks.append((cur, tot))
+                        cur, tot = [], 0 if full else k
+                    cur.append((ids[k:], n, futs[key]))
+                    tot += c
+                chunks.append((cur, tot))
+                for subs, ntok in chunks:
+                    self.q.put(([0] * ntok, None, (seqs[0][:k], subs)))  # len(item[0]) = the step's token count
+                answers = {key: shape(questions[key], futs[key].result()) for key in questions}
+                return answers, sum(len(ids) for ids, _ in enc.values())
         for k, (ids, n) in enc.items():
             futs[k] = Future()
             self.q.put((ids, n, futs[k]))
@@ -185,7 +293,8 @@ def handler(backend):
 
         def do_GET(self):
             if self.path == "/health":
-                return self._send(200, {"status": "ready", "model": NAME, "steps": backend.steps, "decisions": backend.decisions})
+                return self._send(200, {"status": "ready", "model": NAME, "steps": backend.steps, "decisions": backend.decisions,
+                                        "idle_s": round(getattr(backend, "idle_s", 0.0), 3), "step_tokens": getattr(backend, "step_tokens", 0)})
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
@@ -219,6 +328,12 @@ def main():
     ap.add_argument("--budget", type=int, default=16384)
     ap.add_argument("--max-wait-ms", type=float, default=0.0, help="extra wait to fill a step (0 = take what is queued)")
     ap.add_argument("--port", type=int, default=8741)
+    ap.add_argument("--shared-state", default="0", help="1: questions of one request share the encoded state prefix (approximation: "
+                    "state tokens do not attend to the question); measured separately, see RESULTS.md")
+    ap.add_argument("--shared-min", type=int, default=64, help="minimum common-prefix tokens for a shared-state group")
+    ap.add_argument("--shared-until", type=int, default=None, help="share layers [0, N) (default: $PPLX_SHARED_UNTIL or 16; 64 = all)")
+    ap.add_argument("--shared-mixq", default=None, help="1: in the shared attention layers the state rows attend to the state and all "
+                    "questions of the request (default: $PPLX_SHARED_MIXQ or 0)")
     ap.add_argument("--warm-steps", type=int, default=200, help="randomised warm-up steps before /health is ready")
     a = ap.parse_args()
     backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)
