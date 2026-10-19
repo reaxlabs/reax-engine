@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-REAX-Engine-1.0 AND Apache-2.0
+# REAX Engine code (LICENSE) with parts adapted from Apache-2.0 work named below and in NOTICE; modified by the REAX Engine licensor.
 """vLLM-backed decision readout for Gemma-4 family decision models: Quyet-1.0-Large and Rune 26B-A4B.
 
 HONEST SCOPE: these models are served by vLLM inside the REAX Engine (prefill + one-token readout through vLLM's
