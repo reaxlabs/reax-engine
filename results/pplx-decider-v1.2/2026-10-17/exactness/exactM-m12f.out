@@ -1,0 +1,5 @@
+author logits for 40 requests -> /workspace/exactM-m12f.json
+{"linear": "bf16", "packed": false, "requests": 40, "questions": 178, "argmax_agree": 1.0, "mean_max_abs_dp": 0.002453523999331205, "max_abs_dp": 0.05741316080093384}
+{"linear": "bf16", "packed": true, "requests": 40, "questions": 178, "argmax_agree": 0.9943820224719101, "mean_max_abs_dp": 0.002627092218379689, "max_abs_dp": 0.05018839240074158}
+{"linear": "fp8", "packed": false, "requests": 40, "questions": 178, "argmax_agree": 0.9775280898876404, "mean_max_abs_dp": 0.016542208174654294, "max_abs_dp": 0.34499797224998474}
+{"linear": "fp8", "packed": true, "requests": 40, "questions": 178, "argmax_agree": 0.9831460674157303, "mean_max_abs_dp": 0.01434867728561728, "max_abs_dp": 0.23966199159622192}

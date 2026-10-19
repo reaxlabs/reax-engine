@@ -1,0 +1,1 @@
+TRITON_CACHE_DIR=/workspace/cold/reax-C/triton TORCHINDUCTOR_CACHE_DIR=/workspace/cold/reax-C/inductor

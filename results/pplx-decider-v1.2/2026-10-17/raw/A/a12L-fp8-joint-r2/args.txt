@@ -1,0 +1,1 @@
+/workspace/m12 --path fastfp8 --split joint --recompile-limit 256
