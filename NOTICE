@@ -4,7 +4,8 @@ The licensor's own code is licensed under the REAX Engine License 1.1 (see LICEN
 condition (commercial use by an organisation that, together with its affiliates, has more than 10 employees or more than
 USD 5 million annual revenue requires a separate written licence, info@decisionmodels.io; mining and validating on
 Bittensor subnet 92 are exempt). Versions up to and including commit ffa8398af512a0ff4694fbfec3cfc16fe874cc28 were
-released under the Apache License, Version 2.0 and stay available under it.
+released under the Apache License, Version 2.0 and stay available under it. Commits published under the REAX Engine
+License 1.0 (tags license-1.0 to license-1.1) may also be used under License 1.1.
 
 The third-party parts listed below stay under their own licences; the Apache License 2.0 text is in
 LICENSES/Apache-2.0.txt. Files that contain copied or adapted third-party code say so in their header.

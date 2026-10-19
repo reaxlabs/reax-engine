@@ -86,13 +86,13 @@ experimental calibrated NVFP4 mode: RESULTS.md.
 ## Licence
 The REAX Engine is licensed under the [REAX Engine License 1.1](LICENSE): the MIT License with one additional condition.
 In plain English (the LICENSE text is what counts):
-- **The code is public and free** for individuals and small companies: use, copy, change and redistribute it under the
-  MIT terms (keep the copyright and licence notice).
+- **The code is public and free** for individuals and small companies, and for non-commercial use by anyone: use, copy,
+  change and redistribute it under the MIT terms (keep the copyright and licence notice).
 - **Larger organisations need a separate licence for commercial use:** an organisation that, together with its
   affiliates, has more than 10 employees or more than USD 5 million annual revenue. Contact **info@decisionmodels.io**.
 - **Mining and validating on the REAX subnet** (Bittensor subnet 92) is exempt from that condition, whatever your size.
 - **Earlier releases keep their licence:** everything up to and including commit `ffa8398` (tag `apache-2.0-final`) was
   published under the Apache License 2.0 and remains available under it. Commits published under the REAX Engine
-  License 1.0 (from tag `license-1.0` until this change) may also be used under License 1.1.
+  License 1.0 (from tag `license-1.0` up to tag `license-1.1`) may also be used under License 1.1.
 - **Third-party code** (prompt contracts adapted from model authors, all Apache-2.0) keeps its own licence; see
   [NOTICE](NOTICE) and the file headers. Model weights are not part of this repository and keep their own licences.
