@@ -24,6 +24,8 @@ COPY engine/__init__.py engine/serve.py engine/registry.py /opt/reax/engine/
 COPY engine/backends/__init__.py engine/backends/base.py engine/backends/common.py engine/backends/gguf_cpu.py \
      engine/backends/gguf_readouts.py /opt/reax/engine/backends/
 COPY LICENSE NOTICE /licenses/
+COPY LICENSES /licenses/LICENSES/
+COPY upstream/d3/LICENSE upstream/d3/NOTICE /licenses/d3/
 RUN useradd --uid 10002 --create-home s1m
 USER s1m
 ENV GGUF_MODEL_DIR=/model GGUF_CONTEXTS=1 RUNTIME_HOST=127.0.0.1 RUNTIME_PORT=8103 HOME=/tmp

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-REAX-Engine-1.0 AND Apache-2.0
+# REAX Engine code (LICENSE) with parts adapted from Apache-2.0 work named below and in NOTICE; modified by the REAX Engine licensor.
 """Native engine for Plumb-4B (crh225/plumb-4b, the "s1-fast" model): Qwen3.5-4B hybrid (24 Gated-DeltaNet + 8 full
 attention layers, CAUSAL), JevK5 decision readout.
 

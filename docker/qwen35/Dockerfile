@@ -19,6 +19,8 @@ COPY engine /opt/reax/engine
 COPY bench /opt/reax/bench
 COPY upstream /opt/reax/upstream
 COPY LICENSE NOTICE /licenses/
+COPY LICENSES /licenses/LICENSES/
+COPY upstream/d3/LICENSE upstream/d3/NOTICE /licenses/d3/
 ENV PYTHONPATH=/opt/reax HOME=/tmp TRITON_CACHE_DIR=/tmp/triton XDG_CACHE_HOME=/tmp/.cache TORCHINDUCTOR_CACHE_DIR=/tmp/inductor
 WORKDIR /opt/reax
 # default: the REAX server (engine/serve.py; needs S1M_INTERNAL_TOKEN or RUNTIME_ALLOW_NO_AUTH=1); override the command for a reference server
