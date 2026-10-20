@@ -1,0 +1,84 @@
+{
+ "set": "p300",
+ "contract": "s1",
+ "n_items": 300,
+ "utc": "2026-10-20T10:50:13Z",
+ "ref": {
+  "target": "/workspace/out/rA1/p300.jsonl",
+  "answered": 297,
+  "unsupported": 3,
+  "errors": 0,
+  "missing": 0
+ },
+ "cand": {
+  "target": "/workspace/out/rB1/p300.jsonl",
+  "answered": 297,
+  "unsupported": 3,
+  "errors": 0,
+  "missing": 0
+ },
+ "paired": {
+  "n": 297,
+  "top_choice_agreement": 1.0,
+  "mean_abs_dp": 0.0,
+  "max_abs_dp": 0.0,
+  "mean_abs_dlogp": 0.0,
+  "max_abs_dlogp": 0.0,
+  "frac_max_dp_gt_0.005": 0.0
+ },
+ "by_type": {
+  "choice": {
+   "n": 147,
+   "top_choice_agreement": 1.0,
+   "mean_abs_dp": 0.0,
+   "max_abs_dp": 0.0,
+   "mean_abs_dlogp": 0.0,
+   "max_abs_dlogp": 0.0,
+   "frac_max_dp_gt_0.005": 0.0
+  },
+  "noul": {
+   "n": 75,
+   "top_choice_agreement": 1.0,
+   "mean_abs_dp": 0.0,
+   "max_abs_dp": 0.0,
+   "mean_abs_dlogp": 0.0,
+   "max_abs_dlogp": 0.0,
+   "frac_max_dp_gt_0.005": 0.0
+  },
+  "score": {
+   "n": 75,
+   "top_choice_agreement": 1.0,
+   "mean_abs_dp": 0.0,
+   "max_abs_dp": 0.0,
+   "mean_abs_dlogp": 0.0,
+   "max_abs_dlogp": 0.0,
+   "frac_max_dp_gt_0.005": 0.0
+  }
+ },
+ "gold": {
+  "n": 297,
+  "ref_accuracy": 0.8316498316498316,
+  "cand_accuracy": 0.8316498316498316,
+  "ref_mean_gold_prob": 0.7472327677705937,
+  "cand_mean_gold_prob": 0.7472327677705937,
+  "accuracy_delta": {
+   "delta_pp": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "reps": 1000,
+   "n": 297
+  },
+  "gold_prob_delta": {
+   "delta_pp": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "reps": 1000,
+   "n": 297
+  },
+  "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+ }
+}

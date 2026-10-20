@@ -38,6 +38,7 @@ from pathlib import Path
 
 from .base import Encoded
 from .common import softmax_t
+from .vllm_patch import ENV as BI_MOE_ENV, env_value as bi_moe_env_value
 
 LETTERS = string.ascii_uppercase
 TYPES = ("choice", "score", "noul")
@@ -449,13 +450,16 @@ _R_BASE = ("--max-model-len", "32768", "--logprobs-mode", "processed_logits", "-
 _R_DET = ("--no-enable-chunked-prefill", "--max-num-batched-tokens", "32768", "-O0")
 _MEAS_R = "measured 11 Oct 2026 on RTX PRO 6000 Blackwell 97.9 GB, vLLM 0.30.0 (pinned image), recipe ported; "
 RUNE_PRESETS = {p.name: p for p in (
-    Preset("deterministic", "REAX s1-pro runtime recipe: batch-invariant kernels, no chunked prefill, -O0, prefix cache off",
+    Preset("deterministic", "REAX s1-pro runtime recipe: batch-invariant kernels, no chunked prefill, -O0, prefix cache off; "
+                            "faster fixed batch-invariant MoE tile when the image carries engine/backends/vllm_patch.py",
            _R_BASE + _R_DET + ("--max-num-seqs", "64", "--gpu-memory-utilization", "0.85", "--no-enable-prefix-caching"),
-           env={"VLLM_BATCH_INVARIANT": "1"},
+           env={"VLLM_BATCH_INVARIANT": "1", BI_MOE_ENV: bi_moe_env_value()},
            measured="closest 11 Oct control (pre-F: same flags, 32 seqs, util 0.65): 36.94 DI-1000 / 23.40 P300 decisions/s, "
                     "c1 p50 71.8 ms; production-recipe perf study 7 Oct (different harness): short text c1 21.3 dec/s, "
                     "c32 141 dec/s; P300 c1 16.5, c32 59.7",
-           gates="bit-exact across c1/c16/c32, restarts and processes (7 Oct study); 0/300 c1 flips"),
+           gates="bit-exact across c1/c16/c32, restarts and processes (7 Oct study); 0/300 c1 flips. 20 Oct 2026 (RTX PRO 6000, "
+                 "3 patched vs 2 unpatched runs): the patched MoE tile gives bit-identical answers to the unpatched preset (P300 "
+                 "297/297, DI-1000 4,981/4,981); full DI-1000 set at 8 clients 26.6-27.0 -> 30.4-31.4 dec/s, c1 p50 60 -> 50 ms"),
     Preset("previous-f", "deterministic + prefix caching + async scheduling, 32 seqs",
            _R_BASE + _R_DET + ("--max-num-seqs", "32", "--gpu-memory-utilization", "0.65", "--enable-prefix-caching",
                                "--async-scheduling"),
@@ -465,9 +469,10 @@ RUNE_PRESETS = {p.name: p for p in (
     Preset("fp8-kv-seqs64", "best measured throughput: BF16 weights, FP8 KV cache, prefix caching, async scheduling, 64 seqs",
            _R_BASE + _R_DET + ("--max-num-seqs", "64", "--gpu-memory-utilization", "0.65", "--enable-prefix-caching",
                                "--async-scheduling", "--kv-cache-dtype", "fp8"),
-           env={"VLLM_BATCH_INVARIANT": "1"},
+           env={"VLLM_BATCH_INVARIANT": "1", BI_MOE_ENV: bi_moe_env_value()},
            measured=_MEAS_R + "76.06 DI-1000 / 29.92 P300 decisions/s (c32), c1 p50 67.7 ms, peak 67.3 GiB "
-                              "(stock author arm same host: 42.55 / 26.37)",
+                              "(stock author arm same host: 42.55 / 26.37); 20 Oct 2026 with the patched MoE tile, one pair: "
+                              "full DI-1000 set at 8 clients 44.2 -> 50.5 dec/s, c1 p50 48.8 -> 40.7 ms, answers bit-identical",
            gates="DI +0.70 [-1.09,+2.76], P300 cap +2.79 [-0.67,+6.16] vs stock; 0/300 c1 flips (two passes); "
                  "agreement vs stock 98.4% DI / 96.7% P300"),
     Preset("stock-cache-async", "latency alternative: compiled stock vLLM + prefix cache + async scheduling, 32 seqs, "

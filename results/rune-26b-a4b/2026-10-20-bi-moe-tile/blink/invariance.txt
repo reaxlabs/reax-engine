@@ -1,0 +1,6 @@
+# columns: arm, items, answers differing (32 vs 1 clients), (32 vs 32 again), load levels. bX1 load numbers are INVALID (overlapping server, see NOTE.md); its invariance fetches are valid.
+bStock n 297 w32a!=w1 282 w32a!=w32b 274 [('p300', 1, 67.54, 14.5), ('p300', 32, 370.39, 85.4), ('di', 1, 47.46, 18.8), ('di', 32, 134.06, 190.7)]
+bBI n 297 w32a!=w1 0 w32a!=w32b 0 [('p300', 1, 42.12, 23.2), ('p300', 32, 276.87, 114.9), ('di', 1, 32.12, 27.4), ('di', 32, 102.33, 240.0)]
+bX1 n 297 w32a!=w1 281 w32a!=w32b 279 [('p300', 1, 13.72, 22.4), ('p300', 32, 180.14, 119.2)]
+bX3 n 297 w32a!=w1 0 w32a!=w32b 0 [('p300', 1, 34.75, 23.0), ('p300', 32, 270.78, 116.5), ('di', 1, 32.99, 26.5), ('di', 32, 102.05, 239.6)]
+

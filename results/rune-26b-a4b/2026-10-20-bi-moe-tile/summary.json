@@ -1,0 +1,469 @@
+{
+ "date": "2026-10-20",
+ "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition 97,887 MiB, driver 595.91.07, RunPod SECURE pod hpxzhvybmcv8p8",
+ "vllm": "0.30.0 (vllm/vllm-openai@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90), torch 2.13.0+cu130",
+ "model": "surogate/rune-26b-a4b-GGUF@c6b360d47895bb77bdf3805a13ee5a5557ab1921 (bf16 safetensors)",
+ "harness": "harness/arm.sh: engine.serve (s1 contract) spawning vLLM; bench.agreement --fetch-only P300 then DI-1000 (8 workers); bench.loadgen 1,32 clients x 90 s on P300 and DI-1000; fresh Triton cache per arm",
+ "order": [
+  "rA1",
+  "rB1",
+  "rA2",
+  "rB2",
+  "rC",
+  "fA1",
+  "fB1"
+ ],
+ "tile": {
+  "BLOCK_SIZE_M": 128,
+  "BLOCK_SIZE_N": 128,
+  "BLOCK_SIZE_K": 64,
+  "GROUP_SIZE_M": 8,
+  "SPLIT_K": 1,
+  "num_warps": 8,
+  "num_stages": 3
+ },
+ "arms": {
+  "rA1": {
+   "config": "deterministic (unpatched)",
+   "load_p300_c1": {
+    "decisions_per_s": 15.88,
+    "requests": 1430,
+    "wall_s": 90.1,
+    "req_p50_ms": 61.6,
+    "req_p95_ms": 74.6,
+    "http_codes": {
+     "200": 1430,
+     "422": 15
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 46.35,
+    "requests": 4194,
+    "wall_s": 90.5,
+    "req_p50_ms": 680.1,
+    "req_p95_ms": 796.7,
+    "http_codes": {
+     "422": 44,
+     "200": 4194
+    }
+   },
+   "p300_answers_sha256": "e70f91a7a1ffcfb6def5b9364b5a63f80fe6fcd893850333a1633be5f37c8b92",
+   "load_di_c1": {
+    "decisions_per_s": 14.0,
+    "requests": 1260,
+    "wall_s": 90.0,
+    "req_p50_ms": 59.2,
+    "req_p95_ms": 133.7,
+    "http_codes": {
+     "200": 1260,
+     "422": 51,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 41.78,
+    "requests": 3772,
+    "wall_s": 90.3,
+    "req_p50_ms": 554.1,
+    "req_p95_ms": 2334.3,
+    "http_codes": {
+     "200": 3772,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "di_answers_sha256": "18fb8a05d36a7ddaadf8043fe5fde3865bb555b6d4036c47034d902fafeb0dce",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 187.0,
+    "decisions_per_s": 26.63
+   }
+  },
+  "rA2": {
+   "config": "deterministic (unpatched)",
+   "load_p300_c1": {
+    "decisions_per_s": 15.75,
+    "requests": 1418,
+    "wall_s": 90.0,
+    "req_p50_ms": 62.2,
+    "req_p95_ms": 74.7,
+    "http_codes": {
+     "200": 1418,
+     "422": 15
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 47.5,
+    "requests": 4289,
+    "wall_s": 90.3,
+    "req_p50_ms": 664.3,
+    "req_p95_ms": 764.7,
+    "http_codes": {
+     "422": 45,
+     "200": 4289
+    }
+   },
+   "p300_answers_sha256": "e70f91a7a1ffcfb6def5b9364b5a63f80fe6fcd893850333a1633be5f37c8b92",
+   "load_di_c1": {
+    "decisions_per_s": 13.89,
+    "requests": 1251,
+    "wall_s": 90.0,
+    "req_p50_ms": 59.8,
+    "req_p95_ms": 132.8,
+    "http_codes": {
+     "200": 1251,
+     "422": 51,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 41.07,
+    "requests": 3708,
+    "wall_s": 90.3,
+    "req_p50_ms": 569.2,
+    "req_p95_ms": 2356.7,
+    "http_codes": {
+     "200": 3708,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "di_answers_sha256": "18fb8a05d36a7ddaadf8043fe5fde3865bb555b6d4036c47034d902fafeb0dce",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 184.2,
+    "decisions_per_s": 27.03
+   }
+  },
+  "rB1": {
+   "config": "deterministic + REAX_BI_MOE_CONFIG (manual env, pod patch)",
+   "load_p300_c1": {
+    "decisions_per_s": 18.74,
+    "requests": 1687,
+    "wall_s": 90.0,
+    "req_p50_ms": 51.8,
+    "req_p95_ms": 65.5,
+    "http_codes": {
+     "200": 1687,
+     "422": 18
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 51.6,
+    "requests": 4673,
+    "wall_s": 90.6,
+    "req_p50_ms": 615.3,
+    "req_p95_ms": 704.1,
+    "http_codes": {
+     "422": 48,
+     "200": 4673
+    }
+   },
+   "p300_answers_sha256": "e70f91a7a1ffcfb6def5b9364b5a63f80fe6fcd893850333a1633be5f37c8b92",
+   "load_di_c1": {
+    "decisions_per_s": 16.37,
+    "requests": 1474,
+    "wall_s": 90.0,
+    "req_p50_ms": 49.4,
+    "req_p95_ms": 117.2,
+    "http_codes": {
+     "200": 1474,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 46.56,
+    "requests": 4284,
+    "wall_s": 92.0,
+    "req_p50_ms": 460.8,
+    "req_p95_ms": 2299.9,
+    "http_codes": {
+     "200": 4284,
+     "422": 76,
+     "400": 72
+    }
+   },
+   "di_answers_sha256": "18fb8a05d36a7ddaadf8043fe5fde3865bb555b6d4036c47034d902fafeb0dce",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 159.7,
+    "decisions_per_s": 31.19
+   }
+  },
+  "rB2": {
+   "config": "deterministic + REAX_BI_MOE_CONFIG (manual env, pod patch)",
+   "load_p300_c1": {
+    "decisions_per_s": 19.04,
+    "requests": 1714,
+    "wall_s": 90.0,
+    "req_p50_ms": 50.8,
+    "req_p95_ms": 64.1,
+    "http_codes": {
+     "200": 1714,
+     "422": 18
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 51.27,
+    "requests": 4640,
+    "wall_s": 90.5,
+    "req_p50_ms": 613.5,
+    "req_p95_ms": 705.0,
+    "http_codes": {
+     "422": 48,
+     "200": 4640
+    }
+   },
+   "p300_answers_sha256": "e70f91a7a1ffcfb6def5b9364b5a63f80fe6fcd893850333a1633be5f37c8b92",
+   "load_di_c1": {
+    "decisions_per_s": 16.35,
+    "requests": 1472,
+    "wall_s": 90.0,
+    "req_p50_ms": 50.2,
+    "req_p95_ms": 114.7,
+    "http_codes": {
+     "200": 1472,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 46.51,
+    "requests": 4284,
+    "wall_s": 92.1,
+    "req_p50_ms": 464.3,
+    "req_p95_ms": 2292.6,
+    "http_codes": {
+     "200": 4284,
+     "422": 76,
+     "400": 72
+    }
+   },
+   "di_answers_sha256": "18fb8a05d36a7ddaadf8043fe5fde3865bb555b6d4036c47034d902fafeb0dce",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 158.8,
+    "decisions_per_s": 31.37
+   }
+  },
+  "rC": {
+   "config": "deterministic, this repo's vllm_patch module + preset env",
+   "load_p300_c1": {
+    "decisions_per_s": 18.7,
+    "requests": 1683,
+    "wall_s": 90.0,
+    "req_p50_ms": 51.8,
+    "req_p95_ms": 65.4,
+    "http_codes": {
+     "200": 1683,
+     "422": 18
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 51.34,
+    "requests": 4641,
+    "wall_s": 90.4,
+    "req_p50_ms": 617.7,
+    "req_p95_ms": 707.5,
+    "http_codes": {
+     "422": 48,
+     "200": 4641
+    }
+   },
+   "p300_answers_sha256": "e70f91a7a1ffcfb6def5b9364b5a63f80fe6fcd893850333a1633be5f37c8b92",
+   "load_di_c1": {
+    "decisions_per_s": 16.41,
+    "requests": 1478,
+    "wall_s": 90.1,
+    "req_p50_ms": 49.9,
+    "req_p95_ms": 114.1,
+    "http_codes": {
+     "200": 1478,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 46.53,
+    "requests": 4284,
+    "wall_s": 92.1,
+    "req_p50_ms": 458.4,
+    "req_p95_ms": 2276.3,
+    "http_codes": {
+     "200": 4284,
+     "422": 76,
+     "400": 72
+    }
+   },
+   "di_answers_sha256": "18fb8a05d36a7ddaadf8043fe5fde3865bb555b6d4036c47034d902fafeb0dce",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 163.8,
+    "decisions_per_s": 30.41
+   }
+  },
+  "fA1": {
+   "config": "fp8-kv-seqs64 (unpatched)",
+   "load_p300_c1": {
+    "decisions_per_s": 17.14,
+    "requests": 1543,
+    "wall_s": 90.0,
+    "req_p50_ms": 57.5,
+    "req_p95_ms": 71.8,
+    "http_codes": {
+     "200": 1543,
+     "422": 18
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 57.58,
+    "requests": 5217,
+    "wall_s": 90.6,
+    "req_p50_ms": 552.7,
+    "req_p95_ms": 649.4,
+    "http_codes": {
+     "422": 54,
+     "200": 5217
+    }
+   },
+   "p300_answers_sha256": "d53b2a7faf3bc88c76efdb81856a276b5cc9e2ae939fe76a7907ffe040d2c176",
+   "load_di_c1": {
+    "decisions_per_s": 19.3,
+    "requests": 1738,
+    "wall_s": 90.1,
+    "req_p50_ms": 48.8,
+    "req_p95_ms": 76.8,
+    "http_codes": {
+     "200": 1738,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 77.05,
+    "requests": 6971,
+    "wall_s": 90.5,
+    "req_p50_ms": 354.3,
+    "req_p95_ms": 896.7,
+    "http_codes": {
+     "200": 6971,
+     "422": 128,
+     "400": 96
+    }
+   },
+   "di_answers_sha256": "80621328bdadcf0e3150c61109fda1cd0863cf9a96e78191cb0426967046dc07",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 112.8,
+    "decisions_per_s": 44.17
+   }
+  },
+  "fB1": {
+   "config": "fp8-kv-seqs64 + REAX_BI_MOE_CONFIG (manual env)",
+   "load_p300_c1": {
+    "decisions_per_s": 20.97,
+    "requests": 1888,
+    "wall_s": 90.0,
+    "req_p50_ms": 46.4,
+    "req_p95_ms": 60.6,
+    "http_codes": {
+     "200": 1888,
+     "422": 21
+    }
+   },
+   "load_p300_c32": {
+    "decisions_per_s": 63.75,
+    "requests": 5761,
+    "wall_s": 90.4,
+    "req_p50_ms": 499.7,
+    "req_p95_ms": 587.4,
+    "http_codes": {
+     "422": 60,
+     "200": 5761
+    }
+   },
+   "p300_answers_sha256": "d53b2a7faf3bc88c76efdb81856a276b5cc9e2ae939fe76a7907ffe040d2c176",
+   "load_di_c1": {
+    "decisions_per_s": 22.57,
+    "requests": 2032,
+    "wall_s": 90.0,
+    "req_p50_ms": 40.7,
+    "req_p95_ms": 67.3,
+    "http_codes": {
+     "200": 2032,
+     "422": 52,
+     "400": 24
+    }
+   },
+   "load_di_c32": {
+    "decisions_per_s": 81.88,
+    "requests": 7393,
+    "wall_s": 90.3,
+    "req_p50_ms": 327.1,
+    "req_p95_ms": 873.8,
+    "http_codes": {
+     "200": 7393,
+     "422": 128,
+     "400": 96
+    }
+   },
+   "di_answers_sha256": "80621328bdadcf0e3150c61109fda1cd0863cf9a96e78191cb0426967046dc07",
+   "fixed_workload_di1000_8clients": {
+    "answered": 4981,
+    "wall_s": 98.5,
+    "decisions_per_s": 50.54
+   }
+  }
+ },
+ "bitwise_answer_comparison": {
+  "rA1-vs-rA2-p300": {
+   "n": 297,
+   "different": 0
+  },
+  "rA1-vs-rA2-di": {
+   "n": 4981,
+   "different": 0
+  },
+  "rA1-vs-rB1-p300": {
+   "n": 297,
+   "different": 0
+  },
+  "rA1-vs-rB1-di": {
+   "n": 4981,
+   "different": 0
+  },
+  "rA1-vs-rB2-p300": {
+   "n": 297,
+   "different": 0
+  },
+  "rA1-vs-rB2-di": {
+   "n": 4981,
+   "different": 0
+  },
+  "rA1-vs-rC-p300": {
+   "n": 297,
+   "different": 0
+  },
+  "rA1-vs-rC-di": {
+   "n": 4981,
+   "different": 0
+  },
+  "fA1-vs-fB1-p300": {
+   "n": 297,
+   "different": 0
+  },
+  "fA1-vs-fB1-di": {
+   "n": 4981,
+   "different": 0
+  },
+  "rA1-vs-fA1-p300": {
+   "n": 297,
+   "different": 287
+  },
+  "rA1-vs-fA1-di": {
+   "n": 4981,
+   "different": 4630
+  }
+ }
+}

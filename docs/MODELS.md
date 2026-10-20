@@ -85,6 +85,8 @@ flips under batching at c8 (Quyet loaded-finish study, 9 Oct) - batched vLLM ser
 | `fp8-kv-seqs64` | BF16 weights + FP8 KV, prefix cache, async, 64 seqs | **76.06 / 29.92** | 67.7 ms | DI +0.70 [-1.09,+2.76], P300 cap +2.79 [-0.67,+6.16]; 0/300 c1 flips in two passes; agreement vs stock 98.4% / 96.7% |
 | `stock-cache-async` | compiled stock + prefix cache + async, NOT batch-invariant | 73.68 / 27.14 | 50.0 ms | DI +0.24 [-1.30,+1.62], P300 +1.50 [-1.32,+2.92]; 0/300 c1 flips |
 
+**Batch-invariant MoE tile (20 Oct 2026).** `deterministic` and `fp8-kv-seqs64` set `REAX_BI_MOE_CONFIG`; the `docker/vllm-readout` image applies `engine/backends/vllm_patch.py`. Then vLLM's batch-invariant fused-MoE kernel uses a fixed 128x128x64 tile instead of 64x64x32. The answers are bit-identical to the unpatched preset (P300 297/297, DI-1000 4,981/4,981). Speed on the full DI-1000 set at 8 clients: `deterministic` 26.6-27.0 -> 30.4-31.4 dec/s, c1 p50 60 -> 50 ms; `fp8-kv-seqs64` 44.2 -> 50.5 (s1 contract, one question per call, RTX PRO 6000; RESULTS.md). Identical bits to the old tile were measured on SM120 / vLLM 0.30.0 only; re-check on other GPUs. Outside that image (plain `vllm serve`), the variable has no effect.
+
 Rune's study ended on provider credit, not on a performance ceiling (calibrated FP8 / expert-only NVFP4 were never calibrated or
 measured). Production perf study of 7 Oct (different harness): short text c1 21.3 dec/s p50 45 ms, c32 141 dec/s; P300 c1 16.5,
 c32 59.7. Rune is HF-gated: accept the gate with your own account and give the container your own `HF_TOKEN`; do not mirror weights.
