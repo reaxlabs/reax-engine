@@ -216,3 +216,27 @@ def test_cli_both_entry_points(cmd):
     r = subprocess.run([*cmd, "--model", "nope"], cwd=ROOT, capture_output=True, text=True, timeout=60,
                        env={"PATH": "/usr/bin", "RUNTIME_ALLOW_NO_AUTH": "1"})
     assert r.returncode != 0 and "unknown model" in r.stderr
+
+
+def test_model_defaults_to_reax_model_env(monkeypatch):
+    """Engine competition v2 starts one image per model with REAX_MODEL=<id> (no command-line arguments)."""
+    seen = {}
+
+    def stop(name, a):
+        seen["model"] = name
+        raise SystemExit(0)
+
+    monkeypatch.setenv("RUNTIME_ALLOW_NO_AUTH", "1")
+    monkeypatch.setattr(serve, "load_backend", stop)
+    monkeypatch.setenv("REAX_MODEL", "d3")
+    with pytest.raises(SystemExit):
+        serve.main(["--no-verify"])
+    assert seen["model"] == "d3"
+    monkeypatch.delenv("REAX_MODEL")
+    with pytest.raises(SystemExit):
+        serve.main(["--no-verify"])
+    assert seen["model"] == "plumb-4b"
+    monkeypatch.setenv("REAX_MODEL", "d3")
+    with pytest.raises(SystemExit):
+        serve.main(["--model", "plumb-4b", "--no-verify"])  # an explicit --model (the s1-fast image) still wins
+    assert seen["model"] == "plumb-4b"
