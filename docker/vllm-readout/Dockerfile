@@ -16,6 +16,6 @@ COPY docker/vllm-readout/entrypoint.sh /opt/reax/entrypoint.sh
 COPY LICENSE NOTICE /licenses/
 COPY LICENSES /licenses/LICENSES/
 COPY upstream/d3/LICENSE upstream/d3/NOTICE /licenses/d3/
-RUN chmod +x /opt/reax/entrypoint.sh
+RUN chmod +x /opt/reax/entrypoint.sh && cd /opt/reax && python3 -m engine.backends.vllm_patch
 HEALTHCHECK --interval=30s --timeout=5s --start-period=1200s --retries=3 CMD curl -sf "http://127.0.0.1:${REAX_PORT}/health" || exit 1
 ENTRYPOINT ["/opt/reax/entrypoint.sh"]

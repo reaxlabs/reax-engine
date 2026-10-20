@@ -1,3 +1,48 @@
+# Results (20 Oct 2026): Rune 26B-A4B, faster batch-invariant MoE tile, +12-16 % with bit-identical answers
+
+Model: surogate/rune-26b-a4b @ c6b360d4 (Gemma-4 MoE, 128 experts top-8), vLLM-backed (vLLM 0.30.0 pinned image). GPU: 1x RTX PRO 6000
+Blackwell Server Edition (SM120), RunPod. Harness: `engine.serve` (s1 contract) in front of vLLM; answers from `bench.agreement
+--fetch-only` (P300 + DI-1000 = 5,129 decisions); load from `bench.loadgen` at 1 and 32 clients, 90 s per level, one question per call.
+Arms on one pod in the order rA1 rB1 rA2 rB2 rC fA1 fB1 (A = unpatched, B/C = patched), fresh Triton cache per arm.
+
+**What changed.** With `VLLM_BATCH_INVARIANT=1` (all Rune presets except `stock-cache-async`), vLLM 0.30.0 runs every Triton MoE GEMM with
+one small fixed tile (64x64x32). The fixed tile is what makes the kernel batch-invariant, not its size. `engine/backends/vllm_patch.py`
+(applied in `docker/vllm-readout` at build time) lets the preset set a larger fixed tile (128x128x64, 8 warps, 3 stages) through
+`REAX_BI_MOE_CONFIG`. The idea comes from DeepSeek's DeepInfer: its batch-invariant mode keeps fast kernels with fixed,
+batch-size-independent schedules instead of slow fallbacks. No DeepInfer code is used.
+
+| Rune preset | runs | DI-1000 full set, 8 clients (fixed workload) | DI c32 / P300 c32 (90 s load) | c1 p50 DI / P300 | answers vs unpatched |
+|---|---|---|---|---|---|
+| `deterministic`, unpatched | 2 | 184-187 s = 26.63-27.03 dec/s | 41.07-41.78 / 46.35-47.50 | 59.2-59.8 / 61.6-62.2 ms | - |
+| `deterministic` + tile | 3 (one = this repo's patch module + preset env) | **159-164 s = 30.41-31.37 dec/s (+12.5-16 %)** | 46.51-46.56 / 51.27-51.60 | **49.4-50.2 / 50.8-51.8 ms** | **bit-identical** (P300 297/297, DI 4,981/4,981) |
+| `fp8-kv-seqs64`, unpatched | 1 | 112.8 s = 44.17 dec/s | 77.05 / 57.58 | 48.8 / 57.5 ms | - |
+| `fp8-kv-seqs64` + tile | 1 (run after the unpatched one, not interleaved) | **98.5 s = 50.54 dec/s (+14 %)** | 81.88 / 63.75 | **40.7 / 46.4 ms** | **bit-identical** |
+
+Ranges are over runs. The percentage range runs from the slowest patched run vs the fastest unpatched run (lower bound) to the fastest patched run vs the fastest unpatched run. For `fp8-kv-seqs64` (one pair) the gain is +14 % on the fixed workload and +6 % at DI c32 closed-loop. The headline column is the fixed
+workload: every arm answers the same 4,981 DI-1000 questions with 8 clients. The wall time comes from the answer files' modification times (P300 fetch end to DI fetch end), one sample per arm. The 90 s load columns are closed-loop and replay the item
+list from the start. The patched DI c32 runs got through one full pass (4,284 answered), the unpatched ones through about 88 %, so
+their item mix differs slightly. P300 c32 cycles 300 items many times and shows +8-11 %. Kernel microbenchmark at Rune's shapes
+(`moe_bench.json`): the 128x128x64 tile is 1.26-1.44x faster than 64x64x32 from 64 to 32,768 tokens. A needle test (random weights,
+one routing) shows rows computed alone (M=1, M=17) are bit-equal to the same rows inside an 8,192-token batch.
+
+**Why it stays batch-invariant, and what is only measured.** The new tile is fixed and does not depend on the number of tokens.
+SPLIT_K is 1, so batch invariance holds by construction, as for the old tile. That the new tile gives the **same bits as the old
+one** was measured, not proven: BLOCK_K also changes from 32 to 64, and Triton happened to keep the same fp32 accumulation order. The
+measurement covers SM120, Triton in the pinned vLLM 0.30.0 image, and Rune's shapes (hidden 2816, expert width 704). On another GPU,
+Triton version or model the answers must be re-checked. The tile also needs about 96 KB of shared memory per block.
+
+Not re-verified today: the unpatched `deterministic` preset matched the reax-subnet s1-pro reference adapter bit for bit in the 16 Oct
+study, but that adapter was not run on this pod. The 16 Oct `0.83x at c16` figure for this preset was measured against the adapter;
+it is a serving-path issue and not addressed here. `engine/backends/vllm_patch.py` itself was run against the pod's vLLM
+0.30.0 install: it reported "patched", then `--check` reported "patched", and arm `rC` ran with it. The `docker/vllm-readout` image
+build was **not** run (no Docker on that pod).
+
+Not a win (measured, rejected): **Blink v0.3 (NVFP4)**. Its batch-invariant preset `bi1` runs at 76 % of stock vLLM (DI c32 102.3 vs
+134.1). The cost is the MoE backend swap (vLLM CUTLASS FP4 instead of FlashInfer CUTLASS): letting FlashInfer CUTLASS run under
+batch invariance is **not** invariant (281/297 P300 answers differ between 1 and 32 clients, as with stock). Keeping the stock dense NVFP4
+linear kernel changes nothing (102.05). MXFP8 (1x32 block-scaled FP8) GEMMs run on SM120 at 2.0-4.4 % below the engine's per-token FP8. They
+are a quality tool, not a speed lever. Data: `results/rune-26b-a4b/2026-10-20-bi-moe-tile/`.
+
 # Results (17 Oct 2026): shared-state mode, 5.8-6.0x the reference, no measurable score change
 
 Model: perplexity-ai/pplx-decider-v1.1-27b @ 6195aa55. GPU: 1x NVIDIA RTX PRO 6000 Blackwell Server Edition (96 GB, 600 W), RunPod,

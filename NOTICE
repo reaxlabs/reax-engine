@@ -31,6 +31,11 @@ package (Apache License 2.0, "Quyet by Chinh Nguyen", https://huggingface.co/chi
 redistributing the model) and the Surogate decisions v1 prompt of the reference Rune adapter (model: surogate/rune-26b-a4b, derived
 from Google Gemma 4, Apache License 2.0). No weights are included.
 
+engine/backends/vllm_patch.py edits one function of vLLM 0.30.0 (Apache License 2.0, Copyright the vLLM project) inside the
+vllm-readout image at build time: the batch-invariant default fused-MoE tile can be set from $REAX_BI_MOE_CONFIG. The edited vLLM
+file stays under Apache-2.0. The idea (batch invariance from fixed, batch-size-independent kernel schedules) follows DeepSeek's
+DeepInfer (https://github.com/deepseek-ai/DeepInfer, Apache License 2.0); no DeepInfer code is included.
+
 Plumb-4B (s1-fast): engine/plumb_engine.py serves crh225/plumb-4b (Apache License 2.0; Qwen3.5-4B base, Apache License 2.0;
 author's JevK5 runtime and calibration by alibiserikbay, Apache License 2.0). The decision prompt and readout in
 engine/plumb_engine.py (payload layout, system instruction, option lettering, calibration temperature use) are adapted from

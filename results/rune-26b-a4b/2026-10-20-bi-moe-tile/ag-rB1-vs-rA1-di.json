@@ -1,0 +1,75 @@
+{
+ "set": "di",
+ "contract": "s1",
+ "n_items": 5129,
+ "utc": "2026-10-20T10:50:13Z",
+ "ref": {
+  "target": "/workspace/out/rA1/di.jsonl",
+  "answered": 4981,
+  "unsupported": 148,
+  "errors": 0,
+  "missing": 0
+ },
+ "cand": {
+  "target": "/workspace/out/rB1/di.jsonl",
+  "answered": 4981,
+  "unsupported": 148,
+  "errors": 0,
+  "missing": 0
+ },
+ "paired": {
+  "n": 4981,
+  "top_choice_agreement": 1.0,
+  "mean_abs_dp": 0.0,
+  "max_abs_dp": 0.0,
+  "mean_abs_dlogp": 0.0,
+  "max_abs_dlogp": 0.0,
+  "frac_max_dp_gt_0.005": 0.0
+ },
+ "by_type": {
+  "choice": {
+   "n": 4813,
+   "top_choice_agreement": 1.0,
+   "mean_abs_dp": 0.0,
+   "max_abs_dp": 0.0,
+   "mean_abs_dlogp": 0.0,
+   "max_abs_dlogp": 0.0,
+   "frac_max_dp_gt_0.005": 0.0
+  },
+  "noul": {
+   "n": 168,
+   "top_choice_agreement": 1.0,
+   "mean_abs_dp": 0.0,
+   "max_abs_dp": 0.0,
+   "mean_abs_dlogp": 0.0,
+   "max_abs_dlogp": 0.0,
+   "frac_max_dp_gt_0.005": 0.0
+  }
+ },
+ "gold": {
+  "n": 3425,
+  "ref_accuracy": 0.8595620437956204,
+  "cand_accuracy": 0.8595620437956204,
+  "ref_mean_gold_prob": 0.806912912744634,
+  "cand_mean_gold_prob": 0.806912912744634,
+  "accuracy_delta": {
+   "delta_pp": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "reps": 1000,
+   "n": 3425
+  },
+  "gold_prob_delta": {
+   "delta_pp": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "reps": 1000,
+   "n": 3425
+  },
+  "note": "accuracy/gold-probability proxy, not the official JevBench capability score"
+ }
+}
