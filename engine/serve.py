@@ -333,7 +333,9 @@ def load_backend(name: str, a):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="plumb-4b", help="registry id or alias (python -m engine.registry)")
+    ap.add_argument("--model", default=os.environ.get("REAX_MODEL") or "plumb-4b",
+                    help="registry id or alias (python -m engine.registry); default $REAX_MODEL, else plumb-4b "
+                         "(the engine competition v2 starts one image per model with REAX_MODEL=<id>)")
     ap.add_argument("--model-dir", default=next((os.environ[v] for v in ("PLUMB_MODEL_DIR", "REAX_MODEL_DIR", "GGUF_MODEL_DIR")
                                                  if os.environ.get(v)), "/model"))
     ap.add_argument("--host", default=None, help="default $RUNTIME_HOST or 127.0.0.1 ($RUNTIME_UDS wins over host and port)")
