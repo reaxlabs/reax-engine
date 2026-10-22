@@ -19,7 +19,7 @@ LABEL org.opencontainers.image.title="reax-engine-ref-qwen35" \
       org.opencontainers.image.source="https://github.com/reaxlabs/reax-engine" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.licenses="LicenseRef-REAX-Engine-1.1 AND Apache-2.0" \
-      ai.reax.engine.models="d3turbo,pplx,reax1" \
+      ai.reax.engine.models="d3,pplx,reax1" \
       ai.reax.engine.commit="${GIT_SHA}"
 ENV DEBIAN_FRONTEND=noninteractive PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 # gcc + Python headers: Triton / torch.compile build their launcher stubs at run time (into /tmp).
