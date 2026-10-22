@@ -125,7 +125,36 @@ jobs:
           file: ${{ matrix.file }}
           push: true
           build-args: GIT_SHA=${{ github.sha }}
+          provenance: false  # a plain image manifest, so the pushed digest is the one `docker pull image@sha256:...` resolves
           tags: ${{ steps.tags.outputs.list }}
+      - name: Smoke test the pushed image (no GPU; the contract flags: no network, read-only, uid 10002)
+        run: |
+          first=$(echo "${{ matrix.names }}" | cut -d' ' -f1)
+          img="ghcr.io/reaxlabs/reax-engine-ref-${first}@${{ steps.push.outputs.digest }}"
+          docker pull -q "$img" >/dev/null
+          flags="--rm --network none --read-only --tmpfs /tmp:rw,exec --cap-drop ALL --user 10002:10002"
+          docker image inspect "$img" --format '{{json .Config.Labels}}' | python3 -c "import json,sys; l=json.load(sys.stdin); print({k:v for k,v in l.items() if k.startswith('ai.reax')}); assert l['ai.reax.engine.models'] and l['org.opencontainers.image.revision']=='${{ github.sha }}'"
+          if [ "${{ matrix.id }}" = qwen35 ]; then
+            docker run $flags --entrypoint python "$img" -c "
+          import torch, fla, transformers
+          from engine import registry
+          from engine.backends import qwen35
+          qwen35._pplx_engine_module()
+          print('versions', torch.__version__, fla.__version__, transformers.__version__)
+          for m in ('d3-turbo', 'reax-1', 'pplx-decider-v1.1-27b'):
+              print(m, registry.get(m).production_opts)
+          "
+            docker run $flags --entrypoint python "$img" -m engine.registry | grep -E "d3-turbo|reax-1|pplx-decider"
+          else
+            docker run $flags --entrypoint python3 "$img" -c "
+          import engine.serve
+          from engine import registry
+          from engine.backends import vllm_readout as V
+          print(registry.get('blink').production_opts)
+          print(' '.join(V.vllm_argv(V.preset_for('blink', 'ref-prod'), '/model')))
+          "
+            docker run $flags --entrypoint bash "$img" -n /opt/reax/entrypoint.sh
+          fi
       - name: Pushed digest
         run: |
           {

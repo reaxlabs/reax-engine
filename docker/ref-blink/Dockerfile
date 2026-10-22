@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.title="reax-engine-ref-blink" \
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 HF_HUB_DISABLE_TELEMETRY=1 \
     PYTHONPATH=/opt/reax PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 OPENAI_API_KEY= \
     REAX_PROFILE=reference REAX_MODEL=blink-v0.3-26b-a4b REAX_MODEL_DIR=/model PLUMB_MODEL_DIR=/model REAX_VLLM_PORT=8000 \
-    HOME=/tmp VLLM_CACHE_ROOT=/tmp/vllm-cache TRITON_CACHE_DIR=/tmp/triton TORCHINDUCTOR_CACHE_DIR=/tmp/inductor XDG_CACHE_HOME=/tmp/.cache \
+    HOME=/tmp VLLM_CACHE_ROOT=/tmp/vllm-cache TRITON_CACHE_DIR=/tmp/triton TORCHINDUCTOR_CACHE_DIR=/tmp/inductor XDG_CACHE_HOME=/tmp/.cache NUMBA_CACHE_DIR=/tmp/numba \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility
 RUN mkdir -p /opt/reax /licenses
 COPY engine /opt/reax/engine
