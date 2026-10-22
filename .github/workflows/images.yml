@@ -127,7 +127,7 @@ jobs:
           build-args: GIT_SHA=${{ github.sha }}
           provenance: false  # a plain image manifest, so the pushed digest is the one `docker pull image@sha256:...` resolves
           tags: ${{ steps.tags.outputs.list }}
-      - name: Smoke test the pushed image (no GPU; the contract flags: no network, read-only, uid 10002)
+      - name: Smoke test the pushed image (no GPU, no network, read-only, uid 10002)
         run: |
           first=$(echo "${{ matrix.names }}" | cut -d' ' -f1)
           img="ghcr.io/reaxlabs/reax-engine-ref-${first}@${{ steps.push.outputs.digest }}"
