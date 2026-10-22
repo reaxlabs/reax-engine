@@ -17,6 +17,7 @@ class Encoded:
     payload: Any  # backend-specific, e.g. token ids (list[int]) or a prompt string
     n_tokens: int  # prompt length in model tokens (0 if unknown)
     n_options: int  # number of answer options
+    aux: Any = None  # backend-specific extra, e.g. the state-block token count of d3-turbo or the marker row of reax-1
 
 
 class Backend(Protocol):

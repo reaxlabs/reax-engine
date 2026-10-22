@@ -41,6 +41,8 @@ class ModelSpec:
     weights_gb: float = 0.0             # download size (0 = not applicable)
     notes: str = ""
     model_kind: str = "decision"        # "decision" (readout over answer options) | "classifier_heads" (encoder + fixed heads)
+    production_opts: dict = field(default_factory=dict, compare=False)   # backend options of the production recipe, applied by
+    #                                                                       serve.py when REAX_PROFILE=reference (the engine track v2 images)
 
     def __post_init__(self):
         assert self.status in STATUSES, self.status
@@ -83,6 +85,16 @@ def _d3(model_dir, **opts):
     return Qwen35Backend(model_dir, family="d3", name="d3", **opts)
 
 
+def _d3_turbo(model_dir, **opts):
+    from engine.backends.qwen35 import Qwen35Backend
+    return Qwen35Backend(model_dir, family="d3", name="d3-turbo", **opts)
+
+
+def _reax1(model_dir, **opts):
+    from engine.backends.qwen35 import Qwen35Backend
+    return Qwen35Backend(model_dir, family="reax1", name="reax-1", **opts)
+
+
 def _quyet(model_dir, **opts):
     from engine.backends.vllm_readout import VllmReadoutBackend
     return VllmReadoutBackend(model_dir, family="quyet", name="quyet-1.0-large", **opts)
@@ -123,7 +135,8 @@ _SPECS = (
         readout="255-way code readout at the last position, T from decision_config.json; prompt adapted from the author's code",
         backend_kind="native-gpu", status="native", factory=_pplx, weights_gb=52,
         hardware="80+ GB card for bf16; FP8 28.7 GiB; 32 GB cards with CIE_LAZY_LOAD=1; measured on RTX PRO 6000 (sm_120), H100/H200/B200, RTX 5090",
-        notes="stock vLLM/SGLang/TensorRT-LLM cannot serve it (noncausal attention)"),
+        notes="stock vLLM/SGLang/TensorRT-LLM cannot serve it (noncausal attention)",
+        production_opts={"budget": 4096, "warm_steps": 200}),
     ModelSpec(
         id="d3", aliases=("vllm-sr-d3",),
         hf_repo="vllm-sr/d3", revision="225be8b1e2270becab69c5fe05b26f99cbbdd66b",
@@ -133,6 +146,29 @@ _SPECS = (
         backend_kind="native-gpu", status="native", factory=_d3, weights_gb=52,
         hardware="same as pplx-decider; long prompts (64k+ tokens) need the int64 index fixes in this repo",
         notes="decision_config.json says attention_mode=noncausal_full_attention. Contract verified against revisions 5ce995d and 225be8b."),
+    ModelSpec(
+        id="d3-turbo", aliases=("d3turbo", "vllm-sr-d3-turbo"),
+        hf_repo="vllm-sr/d3-turbo", revision="cfa0d41d253467e4742d5aedb46d4f0ef3b84b41",
+        licence="Apache-2.0", licence_notice="Apache-2.0; (c) vLLM Semantic Router Team; keep upstream/d3/LICENSE and NOTICE. Built on Qwen/Qwen3.8-27B.",
+        params="26.1B", arch="Qwen3.5 hybrid (same text stack as d3): 48 Gated-DeltaNet + 16 full-attention layers with PREFIX_BIDIR attention (the state block attends to itself only, the question block reads the whole row)",
+        readout="d3-code-readout-v1 as d3 (system + State/Question/Options user turn, 255 single-token codes, fp32 readout); decision_config.json says attention_mode=prefix_bidir",
+        backend_kind="native-gpu", status="native", factory=_d3_turbo, weights_gb=52,
+        hardware="same as d3; FP8 ~31 GiB with CIE_LAZY_LOAD=1, step budget 16384 tokens ~35 GiB",
+        notes="production recipe of the s1-pro d3-turbo node: state-once through forward_groups for every call (REAX_PROFILE=reference applies it: "
+              "shared_state, shared_group, shared_until 64, budget 16384, 8192-token cap per question); without the profile the engine runs plain prefix_bidir.",
+        production_opts={"budget": 16384, "max_input_tokens": 8192, "warm_steps": 200, "shared_state": True, "shared_group": True,
+                         "shared_until": 64, "shared_mixq": False}),
+    ModelSpec(
+        id="reax-1", aliases=("reax1", "decisionmodels-reax-1"),
+        hf_repo="decisionmodels/reax-1", revision="ca2a0cc54a537c1f5cf24e5b09387cfb357b6518",
+        licence="Apache-2.0", licence_notice="Apache-2.0 (decisionmodels.io REAX 1 release). Keep the repo LICENSE/NOTICE.",
+        params="26.1B", arch="Qwen3.5 hybrid as pplx-decider-v1.1-27b (48 Gated-DeltaNet + 16 NONCAUSAL full-attention layers), joint request format (protocol v3)",
+        readout="pplx-decider v1.2 joint format: one sequence per request, 255-way code readout at the question marker token, T from decision_config.json; "
+                "tokenised by the author's Encoder from the checkpoint's source/src/pplx_decider (run from the read-only weights mount)",
+        backend_kind="native-gpu", status="native", factory=_reax1, weights_gb=48.6,
+        hardware="same as pplx-decider; FP8 ~31-34.5 GiB on RTX PRO 6000 (production recipe: CIE_LAZY_LOAD=1, budget 8192)",
+        notes="served as one question per sequence (the production node's --v12-split single); a question over 8192 tokens gets 422",
+        production_opts={"budget": 8192, "max_input_tokens": 8192, "warm_steps": 200}),
     ModelSpec(
         id="quyet-1.0-large", aliases=("quyet",),
         hf_repo="chinhnc/Quyet-1.0-Large", revision="9a0f051112ba4301f6e4c8b87fc088ce00b11aae",
@@ -159,7 +195,9 @@ _SPECS = (
         readout="Surogate decisions v1 (same prompt as Rune), letters A..Z (two-letter codes above 26 options), softmax over processed logprobs / T=1.3",
         backend_kind="vllm", status="vllm-backed", factory=_blink, weights_gb=17.5,
         hardware="Blackwell GPU (NVFP4); 31 GiB peak measured at utilization 0.30, 32k context; measured RTX PRO 6000",
-        notes="serving recipe = vLLM with the bi1 preset (batch-invariant, c1 zero flips); the author's own readme serves it with plain vLLM."),
+        notes="serving recipe = vLLM with the bi1 preset (batch-invariant, c1 zero flips); the author's own readme serves it with plain vLLM. "
+              "REAX_PROFILE=reference uses the ref-prod preset (the s1-fast production flags at gpu_memory_utilization 0.45).",
+        production_opts={"preset": "ref-prod", "max_input_tokens": 8000}),
     ModelSpec(
         id="gutsy-0.8b", aliases=("gutsy", "s1-cpu"),
         hf_repo="kouhxp/gutsy", revision="f9995fe26a337f1a4ea3f1a5ed38c9799e5a8f63",

@@ -721,7 +721,7 @@ class PplxEngine:
         max_q = max(max(s, n - s) for n, s in zip(lens, states))
         return kidx, cu_q, cu_k, max_q, max(lens), oq, ok
 
-    def _attention(self, L, x, pos_cs, cu, max_len, lens, last_idx=None, xq=None, blocks=None, sh=None):
+    def _attention(self, L, x, pos_cs, cu, max_len, lens, last_idx=None, xq=None, blocks=None, sh=None, read_cu=None):
         cos, sin = pos_cs
         T = x.shape[0]
         nq = self.nh * self.hd * 2
@@ -747,9 +747,13 @@ class PplxEngine:
                 o = self._attend(q, k.index_select(0, kidx), v.index_select(0, kidx), cu_q, cu_k, max_q, max_k, oq, ok)
         else:
             q = K.norm_rope(q, L["q_norm"], cos[last_idx][:, None], sin[last_idx][:, None], self.eps, self.rot)
-            n = last_idx.shape[0]
-            cu_q = torch.arange(n + 1, device=x.device, dtype=cu.dtype)
-            o = self._attend(q, k, v, cu_q, cu, 1, max_len, list(range(n + 1)), lens)
+            if read_cu is None:  # one readout row per sequence (v1.1: its last token)
+                n = last_idx.shape[0]
+                cu_q = torch.arange(n + 1, device=x.device, dtype=cu.dtype)
+                o = self._attend(q, k, v, cu_q, cu, 1, max_len, list(range(n + 1)), lens)
+            else:  # v1.2 joint format: several marker rows per sequence, each attends to its whole sequence (noncausal)
+                cu_q, max_q, offs_q = read_cu
+                o = self._attend(q, k, v, cu_q, cu, max_q, max_len, offs_q, lens)
         if xq is not None and L["o"].mode == "fp8":
             return L["o"](None, K.gate_mul_q(o.reshape(o.shape[0], -1), gate))
         return L["o"](K.gate_mul(o.reshape(o.shape[0], -1), gate))
@@ -883,6 +887,26 @@ class PplxEngine:
         cu_cpu = torch.tensor(offs, dtype=torch.int64) if self.host_cu else None  # fla: no device sync for chunk indices
         return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu, blocks=blocks))
 
+    @torch.inference_mode()
+    def forward_marked(self, ids: torch.Tensor, lens: list[int], reads: list[list[int]]):
+        """pplx-decider v1.2 joint format: ids packed [T]; lens per sequence (one sequence = one request: state + all
+        questions); reads[j] = marker positions (within sequence j, ascending) of its questions. Full attention is
+        noncausal over each whole sequence, the readout is applied at every marker. Returns logits [n_markers, 255]."""
+        dev = ids.device
+        offs, roff, read = [0], [0], []
+        for n, r in zip(lens, reads):
+            read += [offs[-1] + p for p in r]
+            offs.append(offs[-1] + n)
+            roff.append(roff[-1] + len(r))
+        cu = torch.tensor(offs, device=dev, dtype=torch.int32)
+        cos, sin = self._rope_tables(lens, dev)
+        cu_cpu = torch.tensor(offs, dtype=torch.int64) if self.host_cu else None
+        read_idx = torch.tensor(read, device=dev, dtype=torch.int64)
+        read_cu = (torch.tensor(roff, device=dev, dtype=torch.int32), max(len(r) for r in reads), roff)
+        prune = None if self.prune_last else False
+        return self._drive([self._core_gen(ids, cu, cu.long(), offs, max(lens), read_idx, cos, sin, cu_cpu, prune=prune,
+                                           read_cu=read_cu)], [None])[0]
+
     def _rope_tables(self, lens, dev):
         import numpy as np
         pos = torch.from_numpy(np.concatenate([np.arange(n, dtype=np.float32) for n in lens])).to(dev)
@@ -890,7 +914,8 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
 
-    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None, sh=None, blocks=None):
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None, sh=None, blocks=None,
+                  read_cu=None):
         """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
         inside a CUDA graph with static `ids` / `last_idx`). prune=False computes the last layer for every row (needed when
         the sequences are right-padded: the pruned last-layer attention assumes the read row is the last key)."""
@@ -918,7 +943,8 @@ class PplxEngine:
             elif not (last and prune):
                 d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq, blocks=blocks, sh=sh)
             else:
-                d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq, blocks=blocks, sh=sh)
+                d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq, blocks=blocks, sh=sh,
+                                    read_cu=read_cu)
                 h = h[last_idx]
             if self.nv_fuse and self._nv_ok(L["gu"], L["down"]):
                 if self.nv_check:

@@ -1,7 +1,9 @@
 #!/bin/bash
 # vLLM on loopback (flags from the named preset, engine/backends/vllm_readout.py) + the REAX server in front.
 #   REAX_MODEL        registry id (quyet-1.0-large | rune-26b-a4b | blink-v0.3-26b-a4b)           required
-#   REAX_PRESET       serving preset (see docs/MODELS.md); default per model
+#   REAX_PRESET       serving preset (see docs/MODELS.md); default per model (REAX_PROFILE=reference: blink -> ref-prod)
+#   REAX_PROFILE      reference = the engine track v2 reference image: production recipe of the model (registry production_opts)
+#   RUNTIME_UDS       serve the REAX contract on this unix socket instead of TCP (vLLM stays on container-internal loopback)
 #   REAX_MODEL_DIR    weights directory (default /model, mount read-only)
 #   REAX_VERIFY=1     check Quyet's MANIFEST.sha256 before starting (a few minutes)
 #   REAX_OPTS         extra backend options for the server, e.g. 'max_options=255'
@@ -21,6 +23,7 @@ if [ "${REAX_VERIFY:-0}" = 1 ] && [ -f "$DIR/MANIFEST.sha256" ]; then
   (cd "$DIR" && sha256sum --check --strict --quiet MANIFEST.sha256) || { echo "reax: weights do not match the manifest"; exit 2; }
 fi
 VPORT=${REAX_VLLM_PORT:-8000}
+if [ -z "${REAX_PRESET:-}" ] && [ "${REAX_PROFILE:-}" = reference ] && [ "$FAMILY" = blink ]; then REAX_PRESET=ref-prod; fi
 # shellcheck disable=SC2086
 python3 -m engine.backends.vllm_readout "$FAMILY" ${REAX_PRESET:-} "$DIR" --port "$VPORT" --exec ${REAX_VLLM_EXTRA:-} &
 VLLM_PID=$!
