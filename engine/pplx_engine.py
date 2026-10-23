@@ -508,7 +508,10 @@ class PplxEngine:
         from safetensors import safe_open
         dc = json.loads((self.dir / "decision_config.json").read_text())
         self.temperature = float(dc["temperature"])
-        assert dc.get("attention_mode") == "noncausal_full_attention" and dc.get("pooling", "last") == "last"
+        # prefix_bidir (vllm-sr/d3-turbo): full-attention layers mask state tokens away from question tokens; forward() then
+        # needs each sequence's state-block token count
+        assert dc.get("attention_mode") in ("noncausal_full_attention", "prefix_bidir") and dc.get("pooling", "last") == "last"
+        self.prefix_bidir = dc.get("attention_mode") == "prefix_bidir"
 
         idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
         files = {}
@@ -701,7 +704,24 @@ class PplxEngine:
         xr, xp = x[..., :r], x[..., r:]
         return torch.cat([xr * cos + rotate_half(xr) * sin, xp], dim=-1)
 
-    def _attention(self, L, x, pos_cs, cu, max_len, lens, last_idx=None, xq=None, sh=None):
+    @staticmethod
+    def _blocks(offs, lens, states, dev):
+        """prefix_bidir as varlen segments: each row's queries split into [state | question]; the state queries read the
+        state keys, the question queries read the whole row (state + question). Returns (key gather index, cu_q, cu_k,
+        max_q, max_k, q offsets, k offsets) for _attend. The last layer needs none of this: its only query (the readout
+        position) is a question token and reads the whole row, exactly as in the noncausal mode."""
+        kidx, oq, ok = [], [0], [0]
+        for o, n, s in zip(offs[:-1], lens, states):
+            kidx += [torch.arange(o, o + s), torch.arange(o, o + n)]
+            oq += [oq[-1] + s, oq[-1] + n]
+            ok += [ok[-1] + s, ok[-1] + s + n]
+        kidx = torch.cat(kidx).to(dev)
+        cu_q = torch.tensor(oq, device=dev, dtype=torch.int32)
+        cu_k = torch.tensor(ok, device=dev, dtype=torch.int32)
+        max_q = max(max(s, n - s) for n, s in zip(lens, states))
+        return kidx, cu_q, cu_k, max_q, max(lens), oq, ok
+
+    def _attention(self, L, x, pos_cs, cu, max_len, lens, last_idx=None, xq=None, blocks=None, sh=None, read_cu=None):
         cos, sin = pos_cs
         T = x.shape[0]
         nq = self.nh * self.hd * 2
@@ -720,12 +740,20 @@ class PplxEngine:
         v = v.view(T, self.nkv, self.hd)
         if last_idx is None:
             q = K.norm_rope(q, L["q_norm"], cos[:, None], sin[:, None], self.eps, self.rot)
-            o = self._attend(q, k, v, cu, cu, max_len, max_len, lens, lens, causal=self.causal)
+            if blocks is None:
+                o = self._attend(q, k, v, cu, cu, max_len, max_len, lens, lens, causal=self.causal)
+            else:
+                kidx, cu_q, cu_k, max_q, max_k, oq, ok = blocks
+                o = self._attend(q, k.index_select(0, kidx), v.index_select(0, kidx), cu_q, cu_k, max_q, max_k, oq, ok)
         else:
             q = K.norm_rope(q, L["q_norm"], cos[last_idx][:, None], sin[last_idx][:, None], self.eps, self.rot)
-            n = last_idx.shape[0]
-            cu_q = torch.arange(n + 1, device=x.device, dtype=cu.dtype)
-            o = self._attend(q, k, v, cu_q, cu, 1, max_len, list(range(n + 1)), lens)
+            if read_cu is None:  # one readout row per sequence (v1.1: its last token)
+                n = last_idx.shape[0]
+                cu_q = torch.arange(n + 1, device=x.device, dtype=cu.dtype)
+                o = self._attend(q, k, v, cu_q, cu, 1, max_len, list(range(n + 1)), lens)
+            else:  # v1.2 joint format: several marker rows per sequence, each attends to its whole sequence (noncausal)
+                cu_q, max_q, offs_q = read_cu
+                o = self._attend(q, k, v, cu_q, cu, max_q, max_len, offs_q, lens)
         if xq is not None and L["o"].mode == "fp8":
             return L["o"](None, K.gate_mul_q(o.reshape(o.shape[0], -1), gate))
         return L["o"](K.gate_mul(o.reshape(o.shape[0], -1), gate))
@@ -793,13 +821,13 @@ class PplxEngine:
         return L["down"](K.silu_mul(gu, self.inter))
 
     @torch.inference_mode()
-    def forward(self, ids: torch.Tensor, lens: list[int]):
+    def forward(self, ids: torch.Tensor, lens: list[int], states: list[int] | None = None):
         """ids: packed [T] int64 on device; lens: per-decision lengths. Returns readout logits [N, 255] fp32.
         With n_streams > 1 and a big enough step, the decisions are split into n_streams token-balanced groups that are
         advanced layer by layer on separate CUDA streams, so memory-bound kernels of one group overlap the GEMMs of the
         other (the groups are independent: same math per decision)."""
         if self.n_streams <= 1 or len(lens) < self.n_streams or sum(lens) < self.stream_min_tokens:
-            return self._drive([self._forward_gen(ids, lens)], [None])[0]
+            return self._drive([self._forward_gen(ids, lens, states)], [None])[0]
         tot, bounds, acc = sum(lens), [0], 0
         for j, n in enumerate(lens):
             acc += n
@@ -811,7 +839,7 @@ class PplxEngine:
         gens, t0 = [], 0
         for a, b in zip(bounds[:-1], bounds[1:]):
             n = sum(lens[a:b])
-            gens.append(self._forward_gen(ids[t0:t0 + n], lens[a:b]))
+            gens.append(self._forward_gen(ids[t0:t0 + n], lens[a:b], None if states is None else states[a:b]))
             t0 += n
         outs = self._drive(gens, self._streams[: len(gens)])
         return torch.cat(outs, 0)
@@ -841,18 +869,43 @@ class PplxEngine:
                 r.record_stream(cur)
         return res
 
-    def _forward_gen(self, ids: torch.Tensor, lens: list[int]):
+    def _forward_gen(self, ids: torch.Tensor, lens: list[int], states: list[int] | None = None):
         dev = ids.device
         offs = [0]
         for n in lens:
             offs.append(offs[-1] + n)
         cu = torch.tensor(offs, device=dev, dtype=torch.int32)
+        blocks = None
+        if self.prefix_bidir:
+            if states is None or len(states) != len(lens) or any(not 0 < s < n for s, n in zip(states, lens)):
+                raise ValueError("prefix_bidir needs a state block of 1..len-1 tokens per sequence")
+            blocks = self._blocks(offs, lens, states, dev)
         cu64 = cu.long()
         max_len = max(lens)
         last_idx = cu64[1:] - 1
         cos, sin = self._rope_tables(lens, dev)
         cu_cpu = torch.tensor(offs, dtype=torch.int64) if self.host_cu else None  # fla: no device sync for chunk indices
-        return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu))
+        return (yield from self._core_gen(ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu, blocks=blocks))
+
+    @torch.inference_mode()
+    def forward_marked(self, ids: torch.Tensor, lens: list[int], reads: list[list[int]]):
+        """pplx-decider v1.2 joint format: ids packed [T]; lens per sequence (one sequence = one request: state + all
+        questions); reads[j] = marker positions (within sequence j, ascending) of its questions. Full attention is
+        noncausal over each whole sequence, the readout is applied at every marker. Returns logits [n_markers, 255]."""
+        dev = ids.device
+        offs, roff, read = [0], [0], []
+        for n, r in zip(lens, reads):
+            read += [offs[-1] + p for p in r]
+            offs.append(offs[-1] + n)
+            roff.append(roff[-1] + len(r))
+        cu = torch.tensor(offs, device=dev, dtype=torch.int32)
+        cos, sin = self._rope_tables(lens, dev)
+        cu_cpu = torch.tensor(offs, dtype=torch.int64) if self.host_cu else None
+        read_idx = torch.tensor(read, device=dev, dtype=torch.int64)
+        read_cu = (torch.tensor(roff, device=dev, dtype=torch.int32), max(len(r) for r in reads), roff)
+        prune = None if self.prune_last else False
+        return self._drive([self._core_gen(ids, cu, cu.long(), offs, max(lens), read_idx, cos, sin, cu_cpu, prune=prune,
+                                           read_cu=read_cu)], [None])[0]
 
     def _rope_tables(self, lens, dev):
         import numpy as np
@@ -861,7 +914,8 @@ class PplxEngine:
         emb = torch.cat([freqs, freqs], -1)
         return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
 
-    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None, sh=None):
+    def _core_gen(self, ids, cu, cu64, offs, max_len, last_idx, cos, sin, cu_cpu=None, prune=None, sh=None, blocks=None,
+                  read_cu=None):
         """The layer stack on prepared metadata (all device tensors; nothing here syncs with the host, so it can run
         inside a CUDA graph with static `ids` / `last_idx`). prune=False computes the last layer for every row (needed when
         the sequences are right-padded: the pruned last-layer attention assumes the read row is the last key)."""
@@ -887,9 +941,10 @@ class PplxEngine:
             if L["type"] == "linear_attention":
                 d = self._deltanet(L, x, cu64, xq, cu_cpu, sh=sh)
             elif not (last and prune):
-                d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq, sh=sh)
+                d = self._attention(L, x, (cos, sin), cu, max_len, offs, xq=xq, blocks=blocks, sh=sh)
             else:
-                d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq, sh=sh)
+                d = self._attention(L, x, (cos, sin), cu, max_len, offs, last_idx=last_idx, xq=xq, blocks=blocks, sh=sh,
+                                    read_cu=read_cu)
                 h = h[last_idx]
             if self.nv_fuse and self._nv_ok(L["gu"], L["down"]):
                 if self.nv_check:
@@ -946,6 +1001,9 @@ class PplxEngine:
         prefix's recurrent and conv state. Returns readout logits [n_decisions, 255] in group/suffix order."""
         import numpy as np
         assert self.prune_last
+        sh_until = self.shared_until if until is None else until
+        if self.prefix_bidir:  # state-once is exact only when the state block is the shared prefix and never leaves the shared layout
+            assert sh_until >= self.n_layers and not self.shared_mixq and all(ss for _, ss in groups), "prefix_bidir: --shared-until 64, mixq 0, groups only"
         dev = self.device
         kc = 3  # conv kernel - 1
         p_lens = [len(p) for p, _ in groups]

@@ -2,7 +2,7 @@ name: images
 
 on:
   push:
-    branches: [main]
+    branches: [main, "fusion/engine-composite-open-*"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -71,3 +71,100 @@ jobs:
             echo "Tags:"
             echo '${{ steps.tags.outputs.list }}' | sed 's/^/- `/; s/$/`/'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  ref:
+    # Engine track v2 reference images (one per production model, see docs/ENGINE-TRACK-V2-REFERENCE.md): built on version tags,
+    # manual runs and pushes of the engine-composite-open branches. The qwen35 image serves d3-turbo, pplx and REAX 1 and is
+    # published under the three slot names with ONE digest.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/fusion/engine-composite-open-'))
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: qwen35
+            file: docker/ref-qwen35/Dockerfile
+            names: "d3turbo pplx reax1"
+          - id: blink
+            file: docker/ref-blink/Dockerfile
+            names: "blink"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk (the images are 8-12 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker system prune -af >/dev/null || true
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image tags
+        id: tags
+        run: |
+          short="sha-$(git rev-parse --short=7 HEAD)"
+          {
+            echo "list<<EOF"
+            for n in ${{ matrix.names }}; do
+              echo "ghcr.io/reaxlabs/reax-engine-ref-${n}:${short}"
+              [ "${GITHUB_REF_TYPE}" = tag ] && echo "ghcr.io/reaxlabs/reax-engine-ref-${n}:${GITHUB_REF_NAME}"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          build-args: GIT_SHA=${{ github.sha }}
+          provenance: false  # a plain image manifest, so the pushed digest is the one `docker pull image@sha256:...` resolves
+          tags: ${{ steps.tags.outputs.list }}
+      - name: Smoke test the pushed image (no GPU, no network, read-only, uid 10002)
+        run: |
+          first=$(echo "${{ matrix.names }}" | cut -d' ' -f1)
+          img="ghcr.io/reaxlabs/reax-engine-ref-${first}@${{ steps.push.outputs.digest }}"
+          docker pull -q "$img" >/dev/null
+          flags="--rm --network none --read-only --tmpfs /tmp:rw,exec --cap-drop ALL --user 10002:10002"
+          docker image inspect "$img" --format '{{json .Config.Labels}}' | python3 -c "import json,sys; l=json.load(sys.stdin); print({k:v for k,v in l.items() if k.startswith('ai.reax')}); assert l['ai.reax.engine.models'] and l['org.opencontainers.image.revision']=='${{ github.sha }}'"
+          if [ "${{ matrix.id }}" = qwen35 ]; then
+            docker run $flags --entrypoint python "$img" -c "
+          import torch, fla, transformers
+          from engine import registry
+          from engine.backends import qwen35
+          qwen35._pplx_engine_module()
+          print('versions', torch.__version__, fla.__version__, transformers.__version__)
+          for m in ('d3-turbo', 'reax-1', 'pplx-decider-v1.1-27b'):
+              print(m, registry.get(m).production_opts)
+          "
+            docker run $flags --entrypoint python "$img" -m engine.registry | grep -E "d3-turbo|reax-1|pplx-decider"
+          else
+            docker run $flags --entrypoint python3 "$img" -c "
+          import engine.serve
+          from engine import registry
+          from engine.backends import vllm_readout as V
+          print(registry.get('blink').production_opts)
+          print(' '.join(V.vllm_argv(V.preset_for('blink', 'ref-prod'), '/model')))
+          "
+            docker run $flags --entrypoint bash "$img" -n /opt/reax/entrypoint.sh
+          fi
+      - name: Pushed digest
+        run: |
+          {
+            echo "### reference image ${{ matrix.id }} (${{ matrix.names }})"
+            echo
+            echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo
+            echo "Source commit: \`${{ github.sha }}\`"
+            echo
+            echo "Tags:"
+            echo '${{ steps.tags.outputs.list }}' | sed 's/^/- `/; s/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "DIGEST ${{ matrix.id }} ${{ matrix.names }} ${{ steps.push.outputs.digest }}"

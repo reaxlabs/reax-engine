@@ -483,7 +483,18 @@ _B_BASE = ("--dtype", "auto", "--max-model-len", "32768", "--logprobs-mode", "pr
            "--seed", "0", "--quantization", "modelopt_fp4", "--kv-cache-dtype", "fp8", "--enable-prefix-caching",
            "--chat-template-content-format", "string", *_mm('{"image":0,"audio":0,"video":0}'))
 _MEAS_B = "measured 11 Oct 2026 (Lium RTX PRO 6000 Blackwell 96 GB, vLLM 0.30.0 pinned image), recipe ported; "
+# s1-fast / s1-vision production recipe (system1models services/node-letters/configs/blink.json + letters/serve_letters.py: vLLM 0.30.0,
+# NVFP4 modelopt_fp4, FP8 KV, prefix caching, VLLM_BATCH_INVARIANT=1, 8192 context, 32 seqs, 8192-token batches, images allowed) with
+# --gpu-memory-utilization 0.45 instead of 0.23 so that two engines (reference + candidate) fit on one card in the engine track v2.
+_B_PROD = ("--dtype", "auto", "--max-model-len", "8192", "--logprobs-mode", "processed_logprobs", "--max-logprobs", "256",
+           "--seed", "0", "--max-num-seqs", "32", "--gpu-memory-utilization", "0.45", "--quantization", "modelopt_fp4",
+           "--kv-cache-dtype", "fp8", "--enable-prefix-caching", *_mm('{"image":2,"audio":0,"video":0}'),
+           "--max-num-batched-tokens", "8192")
 BLINK_PRESETS = {p.name: p for p in (
+    Preset("ref-prod", "production s1-fast recipe at --gpu-memory-utilization 0.45 (engine track v2 reference): 8192 context, 32 seqs, 8192-token batches, batch-invariant",
+           _B_PROD, env={"VLLM_BATCH_INVARIANT": "1"},
+           measured="calibration of 20 Oct 2026 used bi1 at 0.45 (40.7 GiB, 1x); this preset is not measured yet",
+           gates="not gated yet; differences vs production: only the memory fraction"),
     Preset("stock", "the model card's plain vLLM recipe (NVFP4, FP8 KV, prefix caching, 64 seqs), NOT batch-invariant; the reference arm of the studies",
            _B_BASE + ("--max-num-seqs", "64", "--gpu-memory-utilization", "0.9"),
            measured=_MEAS_B + "stock arm of the 11 Oct study (see the same-host ratios in docs/MODELS.md)",

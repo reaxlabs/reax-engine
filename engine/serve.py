@@ -18,6 +18,9 @@ on a queue; ONE scheduler thread (the only one that touches the GPU) takes every
 0 = never wait: a lone request runs immediately, a burst is packed because requests pile up while a step runs) and
 hands the probabilities back to the event loop in one callback per step.
 
+REAX_PROFILE=reference (set in the reference images) starts a model with its production recipe (registry `production_opts`:
+step budget, token cap, d3-turbo state-once, warm-up); `--opt` still overrides single options.
+
 Models: every id of engine/registry.py (`python -m engine.registry`); plumb-4b has its own fast path, the others are built
 by their registry factory with `--opt key=value` (JSON values) passed through as backend options.
 
@@ -314,6 +317,11 @@ def load_backend(name: str, a):
     except KeyError as exc:
         raise SystemExit(str(exc.args[0])) from None
     opts = parse_opts(a.opt)
+    profile = os.environ.get("REAX_PROFILE", "")
+    if profile not in ("", "reference"):
+        raise SystemExit(f"REAX_PROFILE must be 'reference' or unset, not {profile!r}")
+    if profile == "reference":  # the engine track v2 reference images: the options the production recipe of this model runs with
+        opts = {**spec.production_opts, **opts}
     if spec.id == "plumb-4b":
         from plumb_engine import PlumbBackend
         kw = dict(opts)
@@ -333,7 +341,9 @@ def load_backend(name: str, a):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="plumb-4b", help="registry id or alias (python -m engine.registry)")
+    ap.add_argument("--model", default=os.environ.get("REAX_MODEL") or "plumb-4b",
+                    help="registry id or alias (python -m engine.registry); default $REAX_MODEL, else plumb-4b "
+                         "(the engine competition v2 starts one image per model with REAX_MODEL=<id>)")
     ap.add_argument("--model-dir", default=next((os.environ[v] for v in ("PLUMB_MODEL_DIR", "REAX_MODEL_DIR", "GGUF_MODEL_DIR")
                                                  if os.environ.get(v)), "/model"))
     ap.add_argument("--host", default=None, help="default $RUNTIME_HOST or 127.0.0.1 ($RUNTIME_UDS wins over host and port)")
