@@ -49,7 +49,7 @@ USER s1m
 WORKDIR /opt/reax
 # Writable caches for any uid (the container runs with only /tmp writable): torch.compile and Triton kernels land in /tmp.
 # CIE_LAZY_LOAD=1: stream+quantise weights per tensor (the production recipes), so the load peak stays near the steady size.
-ENV PATH=/opt/venv/bin:$PATH PYTHONPATH=/opt/reax REAX_PROFILE=reference CIE_LAZY_LOAD=1 PLUMB_MODEL_DIR=/model \
+ENV PATH=/opt/venv/bin:$PATH PYTHONPATH=/opt/reax REAX_PROFILE=reference CIE_LAZY_LOAD=1 REAX_MAX_WAIT_MS=4 PLUMB_MODEL_DIR=/model \
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 OPENAI_API_KEY= \
     HOME=/tmp TRITON_CACHE_DIR=/tmp/triton TORCHINDUCTOR_CACHE_DIR=/tmp/inductor XDG_CACHE_HOME=/tmp/.cache \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility
