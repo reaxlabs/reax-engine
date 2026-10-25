@@ -88,6 +88,11 @@ def _quyet(model_dir, **opts):
     return VllmReadoutBackend(model_dir, family="quyet", name="quyet-1.0-large", **opts)
 
 
+def _jeffan(model_dir, **opts):
+    from engine.backends.vllm_readout import VllmReadoutBackend
+    return VllmReadoutBackend(model_dir, family="jeffan", name="jeffan-31b-1710", **opts)
+
+
 def _rune(model_dir, **opts):
     from engine.backends.vllm_readout import VllmReadoutBackend
     return VllmReadoutBackend(model_dir, family="rune", name="rune-26b-a4b", **opts)
@@ -142,6 +147,15 @@ _SPECS = (
         backend_kind="vllm", status="vllm-backed", factory=_quyet, weights_gb=62.5,
         hardware="80+ GB card (bf16 62.5 GB); measured RTX PRO 6000 96 GB",
         notes="Weights, config, tokenizer and quyet_config.json are byte-identical between the measured revision d997d58951e3 and the pinned one (only README/MANIFEST differ)."),
+    ModelSpec(
+        id="jeffan-31b-1710", aliases=("jeffan",),
+        hf_repo="tattrongvu/Jeffan-31b-1710", revision="cebfa86c2bed2b5c83b12e44de4374b20c87fd79",
+        licence="Apache-2.0", licence_notice="Apache-2.0 (LICENSE in the repo since 22 Oct 2026); base google/gemma-4-31B-it (Apache-2.0).",
+        params="31.3B", arch="Gemma-4 dense (Gemma-4-31B base): 60 layers = 50 sliding-window (1024) + 10 full attention (causal), hidden 5376",
+        readout="dm_decision_engine answer-code readout (layout state_first): system line + State/Question/Options user turn, single-token codes A..Z, AA.. (255), restricted softmax T=1, conditional read-twice re-read below top-1 0.9",
+        backend_kind="vllm", status="vllm-backed", factory=_jeffan, weights_gb=62.6,
+        hardware="FP8 weights + FP8 KV: one 96 GB card shared with another model (util 0.42); bf16 needs 80+ GB",
+        notes="Served caps: 8,192 tokens first read (gateway limit), read-twice prompt up to 16,440 (else the first read stands, as in the author path)."),
     ModelSpec(
         id="rune-26b-a4b", aliases=("rune", "s1-pro"),
         hf_repo="surogate/rune-26b-a4b-GGUF", revision="c6b360d47895bb77bdf3805a13ee5a5557ab1921",

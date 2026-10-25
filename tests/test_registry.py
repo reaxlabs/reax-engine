@@ -8,7 +8,7 @@ from engine.backends.common import s1_answer, softmax_t
 
 
 def test_all_models_present_and_consistent():
-    expected = {"plumb-4b", "pplx-decider-v1.1-27b", "d3", "quyet-1.0-large", "rune-26b-a4b", "blink-v0.3-26b-a4b", "gutsy-0.8b", "plumb-4b-q8",
+    expected = {"plumb-4b", "pplx-decider-v1.1-27b", "d3", "quyet-1.0-large", "jeffan-31b-1710", "rune-26b-a4b", "blink-v0.3-26b-a4b", "gutsy-0.8b", "plumb-4b-q8",
                 "s1-llm-auto-router"}
     assert set(registry.REGISTRY) == expected
     for s in registry.REGISTRY.values():
