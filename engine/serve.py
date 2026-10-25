@@ -138,7 +138,9 @@ class App:
         self.loop_hdr = b"x-s1m-internal-token"
         self._inline = getattr(backend, "encode_inline", False)  # False: encode in worker threads (HF tokenisers, llama.cpp)
         own = getattr(backend, "answer", None)  # the model's own answer shape (used by /v1/systemone)
-        if backend.kind == "gguf-cpu":
+        if backend.kind == "gguf-cpu" or getattr(backend, "family", None) == "mammoth":
+            # mammoth (qev contract): noul options are qev's ["yes", "no"]; the production engine (pplx-decider-engine
+            # 5117ec3 decide_qev) answers every path with qev_contract.product_answer -> false/true probabilities
             s1 = own
         elif backend.name == "plumb-4b":
             s1 = lambda q, p: sidecar_answer(q, backend.options(q), p)  # noqa: E731

@@ -122,3 +122,19 @@ def test_mammoth_tokenizer_parity_offline():
     for row in json.loads(FIXTURES.read_text()):
         full, prefix = Q.encode_request(tok, row['state'], [Q.normalize_question(q) for q in row['questions']])
         assert 0 < prefix < min(map(len, full))
+
+
+def test_mammoth_internal_decide_uses_the_qev_product_answer():
+    """GPU check 25 Oct: the internal route built the generic s1 shape from qev's ["yes", "no"] noul keys -> KeyError('true')
+    on the harness's fixed noul probe. Production (pplx-decider-engine 5117ec3) answers every path with product_answer."""
+    from engine.serve import App
+    be = object.__new__(qwen35.Qwen35Backend)
+    be.family, be.name, be.kind = 'mammoth', 'mammoth-1', 'native-gpu'
+    app = App(be, None, 'test-only', 'mammoth-1')
+    for q, p in (({'type': 'noul', 'instructions': 'Was the delivery late?'}, [0.75, 0.25]),
+                 ({'type': 'choice', 'criteria': {'a': 'first', 'b': 'second'}}, [0.1, 0.9]),
+                 ({'type': 'score', 'criteria': ['low', 'mid', 'high']}, [0.2, 0.3, 0.5])):
+        want = Q.product_answer(Q.normalize_question(q), p)
+        assert app._shape['/internal/v1/decide'](q, p) == want == app._shape['/v1/systemone'](q, p)
+    assert app._shape['/internal/v1/decide']({'type': 'noul', 'instructions': 'x'}, [0.75, 0.25])['probabilities'] == \
+        {'false': 0.25, 'true': 0.75}
