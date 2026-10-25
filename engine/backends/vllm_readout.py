@@ -397,9 +397,10 @@ def rune_answer(q, probs):
 class VllmClient:
     """Minimal keep-alive client for vLLM's /v1/completions (one connection per calling thread)."""
 
-    def __init__(self, base_url, model="reax", timeout=600):
+    def __init__(self, base_url, model="reax", timeout=600, completion_temperature=0):
         u = urllib.parse.urlparse(base_url)
         self.host, self.port, self.model, self.timeout = u.hostname, u.port or 80, model, timeout
+        self.completion_temperature = completion_temperature
         self._local = threading.local()
 
     def _conn(self):
@@ -428,7 +429,8 @@ class VllmClient:
 
     def option_values(self, ids, letter_ids):
         """Returned logprobs (processed_logprobs) or soft-capped logits (processed_logits) of the option tokens."""
-        out = self._post("/v1/completions", {"model": self.model, "prompt": ids, "max_tokens": 1, "temperature": 0,
+        out = self._post("/v1/completions", {"model": self.model, "prompt": ids, "max_tokens": 1,
+                                             "temperature": self.completion_temperature, "top_p": 1.0,
                                              "logprobs": len(letter_ids), "allowed_token_ids": letter_ids,
                                              "return_tokens_as_token_ids": True})
         top = out["choices"][0]["logprobs"]["top_logprobs"][0]
@@ -654,7 +656,7 @@ class VllmReadoutBackend:
         if base_url is None:
             base_url = f"http://127.0.0.1:{port}"
             self.server = VllmServer(vllm_argv(self.preset, model_dir, port=port, extra=extra_args), self.preset.env, log_path)
-        self.client = VllmClient(base_url)
+        self.client = VllmClient(base_url, completion_temperature=1.0 if family == "quyet" and self.preset.name == "ref-prod" else 0)
         if self.server:
             try:
                 self.server.wait_ready(self.client, startup_timeout)

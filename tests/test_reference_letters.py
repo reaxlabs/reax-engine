@@ -116,3 +116,19 @@ def test_vision_chat_wire_and_usage_and_context_refusal():
         assert asyncio.run(call(app, "/v1/systemone", body))[0] == 422
     finally:
         be.close();srv.shutdown();srv.server_close();thread.join()
+
+
+def test_quyet_reference_readout_uses_production_temperature(monkeypatch):
+    spec = registry.get("quyet-1-large")
+    be = V.VllmReadoutBackend("unused", family="quyet", name=spec.id, tokenizer=FakeTok(),
+                             base_url="http://127.0.0.1:1", **spec.production_opts)
+    captured = {}
+    def fake_post(path, body):
+        captured.update(body)
+        return {"choices": [{"logprobs": {"top_logprobs": [{"token_id:65": -1, "token_id:66": -2}]}}]}
+    monkeypatch.setattr(be.client, "_post", fake_post)
+    try:
+        be.run([be.encode({}, Q)])
+        assert captured["temperature"] == 1.0 and captured["top_p"] == 1.0
+    finally:
+        be.close()
