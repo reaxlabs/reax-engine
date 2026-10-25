@@ -21,6 +21,9 @@ Families
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import io
 import http.client
 import itertools
 import json
@@ -187,6 +190,46 @@ def build_rune_prompt(tok, state, q, labels):
                                    add_generation_prompt=True, tokenize=False, enable_thinking=False)
 
 
+def build_blink_image_messages(state, q, labels, image):
+    """node-letters/serve.py + letters/templates.py Rune messages (raw string states).
+
+    Kept separate from build_rune_prompt: existing text requests retain their original bytes.
+    """
+    d = parse_quyet_question(q, 26)
+    if d.type == "noul":
+        texts = [d.texts[1] or "No", d.texts[0] or "Yes"]
+    else:
+        texts = quyet_option_texts(d)
+    st = state if isinstance(state, str) else json.dumps(state, ensure_ascii=False)
+    branch = ("QUESTION:\n" + d.instructions + "\nOPTIONS:\n" +
+              "\n".join(f"{lab}: {x}" for lab, x in zip(labels, texts)) +
+              "\nAnswer with one option letter only.")
+    return [{"role": "system", "content": RUNE_SYSTEM},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": image}},
+                {"type": "text", "text": "SHARED STATE (JSON string):\n" + st + "\n\n" + branch}]}]
+
+
+def validate_images(images):
+    """Only one inline PNG/JPEG; verify bytes locally before vLLM sees the URL."""
+    if not isinstance(images, list) or len(images) != 1 or not isinstance(images[0], str):
+        raise ValueError("exactly one PNG/JPEG data URL is accepted")
+    header, sep, encoded = images[0].partition(",")
+    formats = {"data:image/png;base64": "PNG", "data:image/jpeg;base64": "JPEG"}
+    if not sep or header not in formats:
+        raise ValueError("exactly one PNG/JPEG data URL is accepted")
+    try:
+        from PIL import Image
+        raw = base64.b64decode(encoded, validate=True)
+        with Image.open(io.BytesIO(raw)) as im:
+            if im.format != formats[header]:
+                raise ValueError("image bytes do not match the data URL")
+            im.verify()
+    except (binascii.Error, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise ValueError("invalid PNG/JPEG image bytes") from exc
+    return images
+
+
 def codebook(tok, limit=255):
     """A..Z, then AA, AB, ... keeping codes that are exactly one token: (codes, token ids)."""
     cands = list(LETTERS) + ["".join(p) for p in itertools.product(LETTERS, repeat=2)]
@@ -210,6 +253,7 @@ class ReadoutItem:
     ids: list
     letter_ids: list
     temperature: float
+    messages: list | None = None
 
 
 @dataclass
@@ -220,6 +264,7 @@ class FamilyConfig:
     max_prompt_tokens: int = 8000    # prompt cap incl. template; the state is shrunk to fit (quyet)
     max_state_tokens: int = 6000     # quyet state cap
     min_state_tokens: int = 256
+    no_truncation: bool = False
     default_temperature: float = 1.0
 
 
@@ -287,13 +332,15 @@ class ReadoutEncoder:
 
     def _encode_quyet(self, state, question):
         d = parse_quyet_question(question, self._limit())
-        cap = self.cfg.max_state_tokens
+        cap = 10**9 if self.cfg.no_truncation else self.cfg.max_state_tokens
         for _ in range(4):
             prompt, n_state, _ = build_quyet_prompt(self.tok, state, d, self.codes, cap)
             ids = self.tok(prompt, add_special_tokens=False)["input_ids"]
             over = len(ids) - self.cfg.max_prompt_tokens
             if over <= 0:
                 return self._item(ids, len(d.labels), d.type)
+            if self.cfg.no_truncation:
+                raise ValueError("maximum context length exceeded: input exceeds the prompt token cap")
             cap = min(cap, n_state) - over - 16
             if cap < self.cfg.min_state_tokens:
                 raise ValueError("maximum context length: question and options leave no room for the state")
@@ -370,6 +417,8 @@ class VllmClient:
                 r = c.getresponse()
                 data = r.read()
                 if r.status != 200:
+                    if path == "/v1/chat/completions" and r.status == 400:
+                        raise ValueError("maximum context length exceeded or invalid image prompt")
                     raise RuntimeError(f"vLLM HTTP {r.status}: {data[:300]!r}")
                 return json.loads(data)
             except (http.client.HTTPException, ConnectionError, OSError):
@@ -388,6 +437,19 @@ class VllmClient:
         if missing:
             raise RuntimeError(f"vLLM did not return values for option tokens {missing[:3]}")
         return [got[i] for i in letter_ids]
+
+    def image_option_values(self, messages, letter_ids):
+        out = self._post("/v1/chat/completions", {
+            "model": self.model, "messages": messages, "max_tokens": 1, "temperature": 1.0, "top_p": 1.0,
+            "logprobs": True, "top_logprobs": len(letter_ids), "allowed_token_ids": letter_ids,
+            "return_tokens_as_token_ids": True})
+        content = out["choices"][0]["logprobs"]["content"][0]
+        got = {}
+        for entry in [content, *content.get("top_logprobs", [])]:
+            token = entry.get("token", "")
+            if token.startswith("token_id:"):
+                got[int(token[9:])] = float(entry["logprob"])
+        return [got.get(i, -1e9) for i in letter_ids], int(out["usage"]["prompt_tokens"])
 
     def healthy(self):
         try:
@@ -443,6 +505,12 @@ QUYET_PRESETS = {p.name: p for p in (
            gates="DI -0.12 [-2.52,+1.66], P300 cap -1.38 [-4.08,+1.32] vs stock; 0/300 argmax flips at c1; "
                  "agreement vs stock 96.7% DI / 95.7% P300; native DI Language -3.34 pt [-6.74,-0.33] (see docs/MODELS.md)"),
 )}
+
+# Same FP8/FP8-KV production recipe; only 0.40 -> 0.45 to budget two engines on 96 GB.
+QUYET_PRESETS["ref-prod"] = Preset(
+    "ref-prod", "production Quyet FP8 + FP8 KV at utilization 0.45 (two-engine reference budget)",
+    tuple("0.45" if x == "0.9" else x for x in QUYET_PRESETS["fp8-kv"].args),
+    gates="GPU fit and numerical equivalence vs production still required")
 
 _R_BASE = ("--max-model-len", "32768", "--logprobs-mode", "processed_logits", "--max-logprobs", "300",
            "--mm-processor-cache-gb", "0", *_mm('{"image":1}'))
@@ -569,10 +637,12 @@ class VllmReadoutBackend:
 
     def __init__(self, model_dir, *, family, name, preset=None, base_url=None, port=8000, max_options=None,
                  max_input_tokens=None, max_concurrency=None, max_batch_tokens=65536, log_path="vllm.log",
-                 startup_timeout=1800, extra_args=(), tokenizer=None):
+                 startup_timeout=1800, extra_args=(), tokenizer=None, no_truncation=False):
         self.name, self.family = name, family
         self.preset = preset_for(family, preset)
-        self.cfg = load_family_config(family, model_dir, max_options=max_options, max_prompt_tokens=max_input_tokens)
+        self.cfg = load_family_config(family, model_dir, max_options=max_options, max_prompt_tokens=max_input_tokens,
+                                      no_truncation=no_truncation)
+        self.supports_images = family == "blink" and preset == "ref-prod"
         self.max_input_tokens = self.cfg.max_prompt_tokens
         self.max_batch_tokens = max_batch_tokens
         if tokenizer is None:
@@ -600,12 +670,29 @@ class VllmReadoutBackend:
     def encode(self, state, question):
         return self.encoder.encode(state, question)
 
+    def encode_images(self, state, question, images):
+        if not self.supports_images:
+            raise ValueError("this model takes text only")
+        validate_images(images)
+        keys = self.options(question)
+        messages = build_blink_image_messages(state, question, self.encoder.codes[:len(keys)], images[0])
+        # vLLM owns multimodal tokenization; set the actual count after chat readout.
+        return Encoded(ReadoutItem([], self.encoder.letter_ids[:len(keys)],
+                                  temperature_for(self.cfg.temperatures, question["type"], len(keys),
+                                                  self.cfg.default_temperature), messages), 0, len(keys))
+
     def answer(self, question, probs):
         return self.encoder.answer(question, probs)
 
     def _one(self, e: Encoded):
         it: ReadoutItem = e.payload
-        return softmax_t(self.client.option_values(it.ids, it.letter_ids), it.temperature)
+        if it.messages is not None:
+            values, e.n_tokens = self.client.image_option_values(it.messages, it.letter_ids)
+            if e.n_tokens > self.cfg.max_prompt_tokens:
+                raise ValueError("maximum context length exceeded: prompt including image exceeds token cap")
+        else:
+            values = self.client.option_values(it.ids, it.letter_ids)
+        return softmax_t(values, it.temperature)
 
     def run(self, batch):
         """Items run concurrently in vLLM (its scheduler batches them); results in batch order."""

@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install pytest uvicorn aiohttp numpy
+      - run: python -m pip install pytest uvicorn aiohttp numpy pillow
       - run: python -m pytest -q tests
 
   s1-fast:
@@ -89,6 +89,9 @@ jobs:
           - id: qwen35
             file: docker/ref-qwen35/Dockerfile
             names: "d3turbo pplx reax1"
+          - id: quyet
+            file: docker/ref-quyet/Dockerfile
+            names: "quyet"
           - id: blink
             file: docker/ref-blink/Dockerfile
             names: "blink"
@@ -150,8 +153,9 @@ jobs:
           import engine.serve
           from engine import registry
           from engine.backends import vllm_readout as V
-          print(registry.get('blink').production_opts)
-          print(' '.join(V.vllm_argv(V.preset_for('blink', 'ref-prod'), '/model')))
+          family = '${{ matrix.id }}'
+          print(registry.get(family).production_opts)
+          print(' '.join(V.vllm_argv(V.preset_for(family, 'ref-prod'), '/model')))
           "
             docker run $flags --entrypoint bash "$img" -n /opt/reax/entrypoint.sh
           fi

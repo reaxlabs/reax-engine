@@ -12,7 +12,7 @@ set -u
 MODEL=${REAX_MODEL:?set REAX_MODEL to a registry id}
 DIR=${REAX_MODEL_DIR:-/model}
 case "$MODEL" in
-  quyet|quyet-1.0-large) FAMILY=quyet; MODEL=quyet-1.0-large ;;
+  quyet|quyet-1-large|quyet-1.0-large) FAMILY=quyet; MODEL=quyet-1.0-large ;;
   rune|s1-pro|rune-26b-a4b) FAMILY=rune; MODEL=rune-26b-a4b ;;
   blink|s1-fast-2|blink-v0.3-26b-a4b) FAMILY=blink; MODEL=blink-v0.3-26b-a4b ;;
   *) echo "reax: $MODEL is not a vLLM-backed model"; exit 2 ;;
@@ -23,7 +23,7 @@ if [ "${REAX_VERIFY:-0}" = 1 ] && [ -f "$DIR/MANIFEST.sha256" ]; then
   (cd "$DIR" && sha256sum --check --strict --quiet MANIFEST.sha256) || { echo "reax: weights do not match the manifest"; exit 2; }
 fi
 VPORT=${REAX_VLLM_PORT:-8000}
-if [ -z "${REAX_PRESET:-}" ] && [ "${REAX_PROFILE:-}" = reference ] && [ "$FAMILY" = blink ]; then REAX_PRESET=ref-prod; fi
+if [ -z "${REAX_PRESET:-}" ] && [ "${REAX_PROFILE:-}" = reference ] && { [ "$FAMILY" = blink ] || [ "$FAMILY" = quyet ]; }; then REAX_PRESET=ref-prod; fi
 # shellcheck disable=SC2086
 python3 -m engine.backends.vllm_readout "$FAMILY" ${REAX_PRESET:-} "$DIR" --port "$VPORT" --exec ${REAX_VLLM_EXTRA:-} &
 VLLM_PID=$!

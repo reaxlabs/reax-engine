@@ -170,14 +170,15 @@ _SPECS = (
         notes="served as one question per sequence (the production node's --v12-split single); a question over 8192 tokens gets 422",
         production_opts={"budget": 8192, "max_input_tokens": 8192, "warm_steps": 200}),
     ModelSpec(
-        id="quyet-1.0-large", aliases=("quyet",),
-        hf_repo="chinhnc/Quyet-1.0-Large", revision="9a0f051112ba4301f6e4c8b87fc088ce00b11aae",
+        id="quyet-1.0-large", aliases=("quyet", "quyet-1-large"),
+        hf_repo="chinhnc/Quyet-1.0-Large", revision="d997d58951e3c0da4486cf0884ca9d4d916e95dc",
         licence="Apache-2.0", licence_notice='Apache-2.0; keep NOTICE including its first line "Quyet by Chinh Nguyen" on redistribution. Base google/gemma-4-31B-it.',
         params="31.3B", arch="Gemma-4 dense: 60 layers = 50 sliding-window (1024) + 10 full attention (causal), hidden 5376, merged LoRA r16",
         readout="prompt v2 (single user turn, compact JSON state), option letters A..J (native max 10 options), per-type temperatures from quyet_config.json (choice 1.3007 / score 1.3159 / noul 1.4957)",
         backend_kind="vllm", status="vllm-backed", factory=_quyet, weights_gb=62.5,
         hardware="80+ GB card (bf16 62.5 GB); measured RTX PRO 6000 96 GB",
-        notes="Weights, config, tokenizer and quyet_config.json are byte-identical between the measured revision d997d58951e3 and the pinned one (only README/MANIFEST differ)."),
+        notes="Reference profile uses production FP8 + FP8 KV recipe, utilization 0.45 for two-engine fit (GPU gate pending).",
+        production_opts={"preset": "ref-prod", "max_input_tokens": 8000, "max_options": 10, "no_truncation": True}),
     ModelSpec(
         id="rune-26b-a4b", aliases=("rune", "s1-pro"),
         hf_repo="surogate/rune-26b-a4b-GGUF", revision="c6b360d47895bb77bdf3805a13ee5a5557ab1921",

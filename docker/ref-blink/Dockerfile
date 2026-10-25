@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.title="reax-engine-ref-blink" \
       org.opencontainers.image.source="https://github.com/reaxlabs/reax-engine" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.licenses="LicenseRef-REAX-Engine-1.1 AND Apache-2.0" \
-      ai.reax.engine.models="blink" \
+      ai.reax.engine.models="blink,vision" \
       ai.reax.engine.commit="${GIT_SHA}"
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 HF_HUB_DISABLE_TELEMETRY=1 \
     PYTHONPATH=/opt/reax PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 OPENAI_API_KEY= \
