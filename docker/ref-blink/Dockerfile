@@ -32,4 +32,9 @@ RUN python3 -m engine.vision_budget
 RUN chmod +x /opt/reax/entrypoint.sh && python3 -m compileall -q /opt/reax/engine
 HEALTHCHECK --interval=30s --timeout=5s --start-period=1500s --retries=3 CMD \
   if [ -n "$RUNTIME_UDS" ]; then curl -sf --unix-socket "$RUNTIME_UDS" http://localhost/health; else curl -sf "http://127.0.0.1:${REAX_PORT:-8741}/health"; fi || exit 1
+# Vision slot determinism (GPU checks 4-6 + lineup, 25 Oct): two co-resident Blink engines (the competition layout) answer image
+# items differently across processes with CUDA graphs (16/69 exact, max |dp| 0.37), also with the encoder budget pinned;
+# --enforce-eager is bit-identical A==B (69/69 at c1/c16) and keeps every top choice vs production (max |dp| 0.049).
+# This image is the reference of slot `vision` only (slot `blink` stays on the text digest ab02e141). Config-only line, last.
+ENV REAX_VLLM_EXTRA=--enforce-eager
 ENTRYPOINT ["/opt/reax/entrypoint.sh"]
