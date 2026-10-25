@@ -756,8 +756,8 @@ JEFFAN_PRESETS = {p.name: p for p in (
     Preset("fp8-kv", "online FP8 weights + FP8 KV cache, prefix caching, 64 seqs (production Quyet flags)",
            _J_BASE + ("--quantization", "fp8", "--kv-cache-dtype", "fp8", "--gpu-memory-utilization", "0.9"),
            measured=_MEAS_J + "fp8 arm", gates="see docs"),
-    Preset("fp8-kv-colo", "fp8-kv at --gpu-memory-utilization 0.42 (co-location share, like the Quyet node's 0.40)",
-           _J_BASE + ("--quantization", "fp8", "--kv-cache-dtype", "fp8", "--gpu-memory-utilization", "0.42"),
+    Preset("fp8-kv-colo", "fp8-kv at --gpu-memory-utilization 0.44 (co-location share; 0.42 lacks 1 GiB KV for one 16,448-token sequence)",
+           _J_BASE + ("--quantization", "fp8", "--kv-cache-dtype", "fp8", "--gpu-memory-utilization", "0.44"),
            measured=_MEAS_J + "fp8 prod arm", gates="see docs"),
 )}
 

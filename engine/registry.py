@@ -191,7 +191,7 @@ _SPECS = (
         params="31.3B", arch="Gemma-4 dense (Gemma-4-31B base): 60 layers = 50 sliding-window (1024) + 10 full attention (causal), hidden 5376",
         readout="dm_decision_engine answer-code readout (layout state_first): system line + State/Question/Options user turn, single-token codes A..Z, AA.. (255), restricted softmax T=1, conditional read-twice re-read below top-1 0.9",
         backend_kind="vllm", status="vllm-backed", factory=_jeffan, weights_gb=62.6,
-        hardware="FP8 weights + FP8 KV: one 96 GB card shared with another model (util 0.42); bf16 needs 80+ GB",
+        hardware="FP8 weights + FP8 KV: one 96 GB card shared with another model (util 0.44); bf16 needs 80+ GB",
         notes="Served caps: 8,192 tokens first read (gateway limit), read-twice prompt up to 16,440 (else the first read stands, as in the author path)."),
     ModelSpec(
         id="rune-26b-a4b", aliases=("rune", "s1-pro"),
