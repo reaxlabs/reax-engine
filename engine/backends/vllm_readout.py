@@ -678,6 +678,10 @@ JEFFAN_PRESETS = {p.name: p for p in (
     Preset("fp8-kv-colo", "fp8-kv at --gpu-memory-utilization 0.44 (co-location share; 0.42 lacks 1 GiB KV for one 16,448-token sequence)",
            _J_BASE + ("--quantization", "fp8", "--kv-cache-dtype", "fp8", "--gpu-memory-utilization", "0.44"),
            measured=_MEAS_J + "fp8 prod arm", gates="see docs"),
+    Preset("fp8-kv-colo-bi", "fp8-kv-colo + batch-invariant kernels (VLLM_BATCH_INVARIANT=1): the canary recipe; without it the "
+                             "golden gate's run1 == run2 fails (13-14 of 500 items, max |dp| 0.010)",
+           _J_BASE + ("--quantization", "fp8", "--kv-cache-dtype", "fp8", "--gpu-memory-utilization", "0.44"),
+           env={"VLLM_BATCH_INVARIANT": "1"}, measured=_MEAS_J + "fp8 prod arm, batch-invariant", gates="golden 500 run1 == run2"),
 )}
 
 PRESETS = {"quyet": QUYET_PRESETS, "rune": RUNE_PRESETS, "blink": BLINK_PRESETS, "jeffan": JEFFAN_PRESETS}
