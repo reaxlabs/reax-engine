@@ -90,6 +90,11 @@ def _d3_turbo(model_dir, **opts):
     return Qwen35Backend(model_dir, family="d3", name="d3-turbo", **opts)
 
 
+def _mammoth(model_dir, **opts):
+    from engine.backends.qwen35 import Qwen35Backend
+    return Qwen35Backend(model_dir, family="mammoth", name="mammoth-1", **opts)
+
+
 def _reax1(model_dir, **opts):
     from engine.backends.qwen35 import Qwen35Backend
     return Qwen35Backend(model_dir, family="reax1", name="reax-1", **opts)
@@ -164,6 +169,17 @@ _SPECS = (
         production_opts={"budget": 16384, "max_input_tokens": 8192, "warm_steps": 200, "shared_state": True, "shared_group": True,
                          "shared_until": 64, "shared_mixq": False}),
     ModelSpec(
+        id="mammoth-1", aliases=("mammoth",),
+        hf_repo="baselabs/mammoth-1", revision="61cec44c281c693992e3d6ebeb44dd3402dfa186",
+        licence="MIT", licence_notice="MIT; keep upstream/mammoth/LICENSE. qev contract port: Apache-2.0, OneJev authors (NOTICE).",
+        params="27B", arch="Qwen3.5 hybrid: Gated-DeltaNet causal, full attention prefix_bidir",
+        readout="qev-labels-v2; A..Z then two-letter slots; slot_lm fp32, T=1.0",
+        backend_kind="native-gpu", status="native", factory=_mammoth, weights_gb=54.7,
+        hardware="FP8 state-once ~35.2 GB peak; two-engine fit requires GPU check on RTX PRO 6000 96 GB",
+        notes="Production private engine 5117ec3; cap 16384, state-once prefix_bidir. CIE_LAZY_LOAD=1 in reference image.",
+        production_opts={"linear": "fp8", "compile": "1", "gva": "1", "budget": 16384, "max_input_tokens": 16384,
+                         "warm_steps": 200, "shared_state": True, "shared_group": True, "shared_until": 64, "shared_mixq": False}),
+    ModelSpec(
         id="reax-1", aliases=("reax1", "decisionmodels-reax-1"),
         hf_repo="decisionmodels/reax-1", revision="ca2a0cc54a537c1f5cf24e5b09387cfb357b6518",
         licence="Apache-2.0", licence_notice="Apache-2.0 (decisionmodels.io REAX 1 release). Keep the repo LICENSE/NOTICE.",
@@ -192,7 +208,8 @@ _SPECS = (
         readout="dm_decision_engine answer-code readout (layout state_first): system line + State/Question/Options user turn, single-token codes A..Z, AA.. (255), restricted softmax T=1, conditional read-twice re-read below top-1 0.9",
         backend_kind="vllm", status="vllm-backed", factory=_jeffan, weights_gb=62.6,
         hardware="FP8 weights + FP8 KV: one 96 GB card shared with another model (util 0.44); bf16 needs 80+ GB",
-        notes="Served caps: 8,192 tokens first read (gateway limit), read-twice prompt up to 16,440 (else the first read stands, as in the author path)."),
+        notes="Served caps: 8,192 tokens first read (gateway limit), read-twice prompt up to 16,440 (else the first read stands, as in the author path).",
+        production_opts={"preset": "fp8-kv-colo-bi", "max_input_tokens": 8192, "max_options": 255}),
     ModelSpec(
         id="rune-26b-a4b", aliases=("rune", "s1-pro"),
         hf_repo="surogate/rune-26b-a4b-GGUF", revision="c6b360d47895bb77bdf3805a13ee5a5557ab1921",

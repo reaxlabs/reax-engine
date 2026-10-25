@@ -450,7 +450,7 @@ class PplxEngine:
         self.nvfp4_scales = json.loads(Path(nvfp4_scales).read_text()) if nvfp4_scales else {}
 
         def lin(w, name):
-            mode = "bf16" if any(s in name for s in fp8_skip) else linear_mode
+            mode = "bf16" if any((name.startswith(s[1:]) if s.startswith("^") else s in name) for s in fp8_skip) else linear_mode
             idx, _, kind = name.partition(".")
             if any(kind == g and (r is None or any(a <= int(idx) <= b for a, b in r)) for g, r in specs):
                 mode = "nvfp4"
@@ -506,37 +506,54 @@ class PplxEngine:
         """Raw text-model weights keyed like the HF module without its prefix ("layers.0...", "embed_tokens.weight",
         "norm.weight"); sets self.temperature, self.readout and pops embed/norm into self.embed / self.norm_w."""
         from safetensors import safe_open
-        dc = json.loads((self.dir / "decision_config.json").read_text())
+        if (self.dir / "decision_config.json").exists():
+            dc = json.loads((self.dir / "decision_config.json").read_text())
+        else:  # baselabs qev checkpoints (mammoth-1, elephant-1): attention from config.json modeling_overrides, slot_lm readout
+            dc = self._qev_config()
         self.temperature = float(dc["temperature"])
         # prefix_bidir (vllm-sr/d3-turbo): full-attention layers mask state tokens away from question tokens; forward() then
         # needs each sequence's state-block token count
         assert dc.get("attention_mode") in ("noncausal_full_attention", "prefix_bidir") and dc.get("pooling", "last") == "last"
         self.prefix_bidir = dc.get("attention_mode") == "prefix_bidir"
 
-        idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
+        if (self.dir / "model.safetensors.index.json").exists():
+            idx = json.loads((self.dir / "model.safetensors.index.json").read_text())["weight_map"]
+        else:  # single-file checkpoint (elephant-1)
+            with safe_open(str(self.dir / "model.safetensors"), framework="pt", device="cpu") as sf:
+                idx = {k: "model.safetensors" for k in sf.keys()}
+        # d3/pplx store the text model under "language_model.", the qev checkpoints under "model.language_model."
+        pre = "language_model." if any(k.startswith("language_model.") for k in idx) else "model.language_model."
         files = {}
         for k, f in idx.items():
-            if k.startswith("language_model."):
+            if k.startswith(pre):
                 files.setdefault(f, []).append(k)
         if os.environ.get("CIE_LAZY_LOAD") == "1":  # opt-in: read each tensor from disk when consumed (GPU < 49 GiB with fp8)
             class _LazyW(dict):
                 def pop(self, k, *d):
                     f = super().pop(k)
                     with safe_open(str(self_dir / f), framework="pt", device=device) as sf:
-                        return sf.get_tensor("language_model." + k)
+                        return sf.get_tensor(pre + k)
             self_dir = self.dir
             W = _LazyW()
             for f, keys in files.items():
                 for k in keys:
-                    W[k[len("language_model."):]] = f
+                    W[k[len(pre):]] = f
         else:
             W = {}
             for f, keys in files.items():
                 with safe_open(str(self.dir / f), framework="pt", device=device) as sf:
                     for k in keys:
-                        W[k[len("language_model."):]] = sf.get_tensor(k)
-        with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
-            self.readout = sf.get_tensor("weight").to(torch.float32 if os.environ.get("PPLX_READOUT_FP32") == "1" else self.dtype)
+                        W[k[len(pre):]] = sf.get_tensor(k)
+        if dc.get("readout") == "slot_lm":
+            # qev slot_lm: the LM-head rows of the slot-label tokens, computed in fp32 (qev head_dtype float32)
+            f = idx["lm_head.weight"]
+            with safe_open(str(self.dir / f), framework="pt", device=device) as sf:
+                head = sf.get_tensor("lm_head.weight")
+            self.readout = head[torch.tensor(dc["slot_ids"][:MAX_OPTIONS], device=device)].to(torch.float32).contiguous()
+            del head
+        else:
+            with safe_open(str(self.dir / "readout.safetensors"), framework="pt", device=device) as sf:
+                self.readout = sf.get_tensor("weight").to(torch.float32 if os.environ.get("PPLX_READOUT_FP32") == "1" else self.dtype)
         self.embed = W.pop("embed_tokens.weight")
         if os.environ.get("PPLX_EMBED_CPU") == "1":  # memory-only: the bf16 embedding table (~2.4 GiB) lives in host RAM;
             self.embed = self.embed.cpu()  # rows are gathered on the host per step and copied (exact, same values)
@@ -544,6 +561,23 @@ class PplxEngine:
         self.norm_w = W.pop("norm.weight")
 
         return W
+
+    def _qev_config(self):
+        """decision_config equivalent of a qev checkpoint (see qev_contract.py)."""
+        from transformers import AutoTokenizer
+        import qev_contract as Q
+        cfg = json.loads((self.dir / "config.json").read_text())
+        ov = cfg.get("modeling_overrides") or {}
+        ro = json.loads((self.dir / "readout.json").read_text()) if (self.dir / "readout.json").exists() else {}
+        full = (ov.get("attention") or {}).get("full_attention", "block_bidirectional" if ro.get("attention") == "noncausal" else "causal")
+        if full != "block_bidirectional" or (ov.get("attention") or {}).get("linear_attention", "causal") != "causal":
+            raise ValueError(f"unsupported qev attention {ov.get('attention')} (engine supports block_bidirectional)")
+        if ro.get("readout", ov.get("readout", "slot_lm")) != "slot_lm":
+            raise ValueError("unsupported qev readout (engine supports slot_lm)")
+        if (self.dir / "calibration.json").exists():
+            raise ValueError("qev calibration.json present: per-kind temperatures are not wired into the engine yet")
+        return {"temperature": 1.0, "attention_mode": "prefix_bidir", "pooling": "last", "readout": "slot_lm",
+                "slot_ids": Q.slot_ids(AutoTokenizer.from_pretrained(str(self.dir)))}
 
     def _chk(self, name, a, b):
         n = (a.view(torch.uint8) != b.view(torch.uint8)).sum().item()

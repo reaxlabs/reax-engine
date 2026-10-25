@@ -1,3 +1,53 @@
+# Engine v2.0 lineup reference update (25 October 2026)
+
+Current scoring slots: **mammoth 0.50, blink 0.20, reax1 0.20, jeffan 0.05, vision 0.05**.
+The historical recipes below remain for provenance; Quyet and pplx are outside this lineup.
+
+- `docker/ref-qwen35` now publishes only `ghcr.io/reaxlabs/reax-engine-ref-mammoth`.
+  Its model label is `d3,pplx,reax1,mammoth`, but only mammoth uses this new build.
+  Existing d3/pplx/reax1 slots retain digest
+  `sha256:503cd9e00114dada655691de44b5a4ff1a08a985bcaf0021121967a73e436eac`.
+- Mammoth weights: `baselabs/mammoth-1@61cec44c281c693992e3d6ebeb44dd3402dfa186`.
+  Reference options: FP8, compile=1, gva=1, budget/cap=16384, shared_state/group=1,
+  shared_until=64, shared_mixq=0, `CIE_LAZY_LOAD=1`. qev-labels-v2 prompt, prefix_bidir
+  full attention, causal GatedDeltaNet, slot_lm fp32, temperature=1.0. The qev contract
+  and loader delta come from the owned production port 5117ec3; no other private files copied.
+  The pinned card declares MIT but supplies no LICENSE; `/licenses/mammoth/NOTICE`
+  explicitly documents this, alongside the declaration and standard MIT text.
+- `docker/ref-jeffan` publishes `ghcr.io/reaxlabs/reax-engine-ref-jeffan`, model/alias
+  `jeffan-31b-1710`/`jeffan`, weights `tattrongvu/Jeffan-31b-1710@cebfa86c2bed2b5c83b12e44de4374b20c87fd79`.
+  Backend from validated branch c992305: preset `fp8-kv-colo-bi`, utilization=0.44,
+  FP8 weights/KV, context=16448, prefix cache, batch-invariant kernels, conditional reread.
+  First read public limit=8192 tokens; reread limit=16440 (not an 8192-token sequence).
+  One question per call; 255 options. Apache-2.0 LICENSE/attribution in `/licenses/jeffan`.
+  Measured alone 49.7 GiB peak: two Jeffan engines may exceed 96 GB, so pair fit is unproven.
+  Lowering context to 8192 would truncate valid rereads and is not an equivalent fallback.
+- Blink text stays pinned to
+  `sha256:ab02e141ffb5672dc68e137736be0a6fa15445c7cc824a51f6ad2a6664c0e10a`.
+  The new Blink build is a **vision candidate only** until GPU checks pass. Its installed
+  vLLM 0.30.0 `Gemma4ForConditionalGeneration._encoder_chunk` has an opt-in
+  `REAX_VISION_ENCODER_BUDGET=total10`: budget=`total_bytes//10`, independent of free
+  memory. Reference-profile Blink enables it at startup. `dynamic` restores upstream
+  `min(free_bytes//2,total_bytes//10)`. Text never calls this encoder function.
+  Build-time source validation fails on drift. This is a determinism hypothesis, not
+  a measured fix; co-resident equality and production parity <=0.02 are still required.
+
+Sampling provenance: the cited node-letters production `letters/serve_letters.py`
+currently sends completions `temperature=1.0, top_p=1.0` for Quyet and Blink text;
+`serve.py` sends chat completions `temperature=1.0, top_p=1.0` for vision. Quyet reference
+keeps both. Blink text restores the **calibrated** client (`temperature=0`, no explicit
+`top_p`); the 33db8c3 addition of top_p changed 42/256 text answers. This distinction
+must be checked in the GPU gate; no claim of wire-identical current production text.
+Jeffan retains the validated branch's `temperature=0`, no explicit `top_p`, followed
+by restricted softmax T=1.0. Vision chat remains `temperature=1.0, top_p=1.0`, T=1.3.
+
+CPU tests cover private-port render/token-split fixtures, slot labels, backend options,
+FP8 anchor semantics and the vision budget patch. Real tokenizer parity is offline-only:
+`python tools/lineup_qev_parity.py --production-contract <5117ec3>/engine/qev_contract.py --tokenizer <mammoth>`.
+GPU parity, repeated-process determinism and pair fit are release gates.
+
+---
+
 # Engine track v2: reference images
 
 The v2 engine competition measures one candidate image on each production model against a pinned reference engine for that

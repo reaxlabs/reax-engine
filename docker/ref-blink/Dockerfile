@@ -28,6 +28,7 @@ COPY docker/vllm-readout/entrypoint.sh /opt/reax/entrypoint.sh
 COPY LICENSE NOTICE /licenses/
 COPY LICENSES /licenses/LICENSES/
 COPY upstream/d3/LICENSE upstream/d3/NOTICE /licenses/d3/
+RUN python3 -m engine.vision_budget
 RUN chmod +x /opt/reax/entrypoint.sh && python3 -m compileall -q /opt/reax/engine
 HEALTHCHECK --interval=30s --timeout=5s --start-period=1500s --retries=3 CMD \
   if [ -n "$RUNTIME_UDS" ]; then curl -sf --unix-socket "$RUNTIME_UDS" http://localhost/health; else curl -sf "http://127.0.0.1:${REAX_PORT:-8741}/health"; fi || exit 1

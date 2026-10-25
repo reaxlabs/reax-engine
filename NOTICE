@@ -38,3 +38,17 @@ the author's jevk5/runtime.py (https://github.com/allebee/jevk5, Apache License 
 Modifications: the chat template is rendered as a plain string and tokenised with the Rust tokenizer (token ids verified
 identical), and the forward pass is the packed varlen engine of engine/pplx_engine.py.
 Model weights are NOT included in any image or source tree.
+
+engine/qev_contract.py ports OneJev qev @81ce62f + the baselabs checkpoints' serve.patch
+(qev/prompt.py, qev/answers.py, qev/engine.py), Apache-2.0, copyright the OneJev authors.
+Modifications: standalone prompt/token-split/answer contract; no author runtime imported.
+Mammoth-1 weights: baselabs/mammoth-1 (MIT declaration in the pinned model card);
+upstream/mammoth/LICENSE and NOTICE document the absent upstream licence file; weights not bundled.
+
+engine/backends/vllm_readout.py includes the Jeffan-31b-1710 dm_decision_engine code-rendering,
+read-twice policy and answer contract, reimplemented for vLLM (Apache-2.0).
+Model: tattrongvu/Jeffan-31b-1710, base google/gemma-4-31B-it (Apache-2.0);
+upstream/jeffan/LICENSE and NOTICE. No model weights bundled.
+
+engine/vision_budget.py patches the pinned vLLM 0.30.0 Gemma4 vision encoder budget
+(Apache-2.0, vLLM contributors) to offer an environment-controlled total-memory budget.

@@ -13,6 +13,7 @@ MODEL=${REAX_MODEL:?set REAX_MODEL to a registry id}
 DIR=${REAX_MODEL_DIR:-/model}
 case "$MODEL" in
   quyet|quyet-1-large|quyet-1.0-large) FAMILY=quyet; MODEL=quyet-1.0-large ;;
+  jeffan|jeffan-31b-1710) FAMILY=jeffan; MODEL=jeffan-31b-1710 ;;
   rune|s1-pro|rune-26b-a4b) FAMILY=rune; MODEL=rune-26b-a4b ;;
   blink|s1-fast-2|blink-v0.3-26b-a4b) FAMILY=blink; MODEL=blink-v0.3-26b-a4b ;;
   *) echo "reax: $MODEL is not a vLLM-backed model"; exit 2 ;;
@@ -24,6 +25,14 @@ if [ "${REAX_VERIFY:-0}" = 1 ] && [ -f "$DIR/MANIFEST.sha256" ]; then
 fi
 VPORT=${REAX_VLLM_PORT:-8000}
 if [ -z "${REAX_PRESET:-}" ] && [ "${REAX_PROFILE:-}" = reference ] && { [ "$FAMILY" = blink ] || [ "$FAMILY" = quyet ]; }; then REAX_PRESET=ref-prod; fi
+if [ -z "${REAX_PRESET:-}" ] && [ "${REAX_PROFILE:-}" = reference ] && [ "$FAMILY" = jeffan ]; then REAX_PRESET=fp8-kv-colo-bi; fi
+if [ "${REAX_PROFILE:-}" = reference ] && [ "$FAMILY" = blink ]; then
+  export REAX_VISION_ENCODER_BUDGET=${REAX_VISION_ENCODER_BUDGET:-total10}
+fi
+case "${REAX_VISION_ENCODER_BUDGET:-}" in
+  ""|total10|dynamic) ;;
+  *) echo "reax: unsupported REAX_VISION_ENCODER_BUDGET"; exit 2 ;;
+esac
 # shellcheck disable=SC2086
 python3 -m engine.backends.vllm_readout "$FAMILY" ${REAX_PRESET:-} "$DIR" --port "$VPORT" --exec ${REAX_VLLM_EXTRA:-} &
 VLLM_PID=$!

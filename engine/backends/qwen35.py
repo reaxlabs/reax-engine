@@ -26,12 +26,12 @@ import random
 import sys
 from pathlib import Path
 
-from .. import d3_contract
+from .. import d3_contract, qev_contract
 from .base import Encoded
 
 _ENGINE_DIR = str(Path(__file__).resolve().parent.parent)
-FAMILIES = ("pplx", "d3", "reax1")
-_DEFAULT_NAMES = {"pplx": "pplx-decider-v1.1-27b", "d3": "d3", "reax1": "reax-1"}
+FAMILIES = ("pplx", "d3", "reax1", "mammoth")
+_DEFAULT_NAMES = {"pplx": "pplx-decider-v1.1-27b", "d3": "d3", "reax1": "reax-1", "mammoth": "mammoth-1"}
 
 
 def _pplx_engine_module():
@@ -63,7 +63,10 @@ class Qwen35Backend:
         self.max_batch_tokens = budget
         self._pp = _pplx_engine_module()
         model_dir = str(model_dir)
-        if family == "d3":
+        if family == "mammoth":
+            from transformers import AutoTokenizer
+            self._tok = AutoTokenizer.from_pretrained(model_dir)
+        elif family == "d3":
             from transformers import AutoTokenizer
             self._d3 = d3_contract
             cfg = json.loads((Path(model_dir) / "decision_config.json").read_text())
@@ -112,13 +115,19 @@ class Qwen35Backend:
 
     # ---------------------------------------------------------------- Backend API
     def options(self, question):
+        if self.family == "mammoth":
+            return list(qev_contract.normalize_question(question).keys)
         if self.family == "d3":
             return list(self._d3.normalize_question(question).keys)
         return list(self._pp.options(question)[0])
 
     def encode(self, state, question):
         aux = None
-        if self.family == "d3":
+        if self.family == "mammoth":
+            n = qev_contract.normalize_question(question)
+            full, aux = qev_contract.encode_request(self._tok, state, [n])
+            ids, n_opt = full[0], len(n.keys)
+        elif self.family == "d3":
             n = self._d3.normalize_question(question)  # ValueError with the reason
             text = self._d3.render(self._tok, state, n.rendered, self._codes)
             if self.prefix_bidir:
@@ -226,6 +235,8 @@ class Qwen35Backend:
 
     # ---------------------------------------------------------------- family answer shapes (/v1/systemone)
     def answer(self, question, probs):
+        if self.family == "mammoth":
+            return qev_contract.product_answer(qev_contract.normalize_question(question), probs)
         if self.family == "d3":
             return self._d3.product_answer(self._d3.normalize_question(question), probs)
         a = self._pp.answer(question, probs)

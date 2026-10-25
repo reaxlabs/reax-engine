@@ -349,6 +349,46 @@ class EngineBackend:
         return answers, sum(len(ids) for ids, _ in enc.values())
 
 
+class MammothBackend:
+    """Legacy HTTP surface over the same mammoth backend used by engine.serve.
+
+    Existing pplx/v1.2 scheduling stays unchanged. The reference image uses
+    engine.serve's continuous scheduler, not this compatibility surface.
+    """
+    def __init__(self, a):
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.backends.qwen35 import Qwen35Backend
+        self.be = Qwen35Backend(a.model, family="mammoth", linear=a.linear, compile=a.compile, gva=a.gva,
+                                fp8_skip=a.fp8_skip, budget=a.budget, max_input_tokens=a.max_tokens,
+                                warm_steps=a.warm_steps, shared_state=a.shared_state == "1",
+                                shared_group=a.shared_group == "1", shared_until=a.shared_until,
+                                shared_mixq=None if a.shared_mixq is None else a.shared_mixq == "1")
+        self.lock = threading.Lock()
+        self.steps = self.decisions = 0
+
+    def decide(self, state, questions):
+        try:
+            batch = [self.be.encode(state, q) for q in questions.values()]
+        except ValueError as exc:
+            if "maximum context length" in str(exc):
+                raise Capacity(str(exc)) from None
+            raise
+        with self.lock:
+            probs, current, tokens = [], [], 0
+            for item in batch:
+                if current and tokens + item.n_tokens > self.be.max_batch_tokens:
+                    probs.extend(self.be.run(current))
+                    self.steps += 1
+                    current, tokens = [], 0
+                current.append(item)
+                tokens += item.n_tokens
+            if current:
+                probs.extend(self.be.run(current))
+                self.steps += 1
+            self.decisions += len(batch)
+        return {k: self.be.answer(q, p) for (k, q), p in zip(questions.items(), probs)}, sum(e.n_tokens for e in batch)
+
+
 class RefBackend:
     def __init__(self, a):
         sys.path.insert(0, str(Path(a.model) / "source" / "src"))
@@ -407,7 +447,7 @@ def handler(backend):
                 if v12 and body.get("images"):  # v1.1 keeps its text-only behaviour (images ignored), as on main
                     raise Capacity("images are not supported by this engine (text-only); use the author's pplx_decider",
                                    "unsupported_images")
-                if not v12:  # v1.2: the author's Encoder validates (1-255 options, 2-255 levels)
+                if not v12 and not isinstance(backend, MammothBackend):  # v1.2: the author's Encoder validates (1-255 options, 2-255 levels)
                     validate(body.get("questions"))
                 elif "state" not in body or not isinstance(body.get("questions"), dict) or not body["questions"]:
                     raise ValueError("A request needs 'state' and 'questions' (questions must be a non-empty object)")
@@ -429,6 +469,9 @@ def handler(backend):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
+    ap.add_argument("--family", choices=["pplx", "mammoth"], default="pplx")
+    ap.add_argument("--max-tokens", type=int, default=16384, help="mammoth per-question token cap")
+    ap.add_argument("--shared-group", default="0", help="mammoth: merge token-identical state blocks")
     ap.add_argument("--backend", choices=["engine", "ref"], default="engine")
     ap.add_argument("--linear", default="bf16")
     ap.add_argument("--compile", default="1")
@@ -456,7 +499,14 @@ def main():
                     "release manifest/config, else the directory name)")
     ap.add_argument("--warm-steps", type=int, default=200, help="randomised warm-up steps before /health is ready")
     a = ap.parse_args()
-    backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)
+    global NAME
+    if a.family == "mammoth":
+        if a.backend != "engine":
+            ap.error("mammoth requires --backend engine")
+        NAME = "mammoth-1"
+        backend = MammothBackend(a)
+    else:
+        backend = EngineBackend(a) if a.backend == "engine" else RefBackend(a)
     class Srv(ThreadingHTTPServer):
         request_queue_size = 512
     srv = Srv(("127.0.0.1", a.port), handler(backend))

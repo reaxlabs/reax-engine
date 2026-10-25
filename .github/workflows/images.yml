@@ -74,8 +74,8 @@ jobs:
 
   ref:
     # Engine track v2 reference images (one per production model, see docs/ENGINE-TRACK-V2-REFERENCE.md): built on version tags,
-    # manual runs and pushes of the engine-composite-open branches. The qwen35 image serves d3-turbo, pplx and REAX 1 and is
-    # published under the three slot names with ONE digest.
+    # manual runs and pushes of the engine-composite-open branches. The qwen35 image supports mammoth and legacy slots; it is
+    # published for mammoth only; calibrated d3/pplx/reax1 digests stay pinned.
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/fusion/engine-composite-open-'))
     needs: test
     runs-on: ubuntu-latest
@@ -88,7 +88,10 @@ jobs:
         include:
           - id: qwen35
             file: docker/ref-qwen35/Dockerfile
-            names: "d3turbo pplx reax1"
+            names: "mammoth"
+          - id: jeffan
+            file: docker/ref-jeffan/Dockerfile
+            names: "jeffan"
           - id: quyet
             file: docker/ref-quyet/Dockerfile
             names: "quyet"
@@ -144,7 +147,7 @@ jobs:
           from engine.backends import qwen35
           qwen35._pplx_engine_module()
           print('versions', torch.__version__, fla.__version__, transformers.__version__)
-          for m in ('d3-turbo', 'reax-1', 'pplx-decider-v1.1-27b'):
+          for m in ('mammoth-1', 'd3-turbo', 'reax-1', 'pplx-decider-v1.1-27b'):
               print(m, registry.get(m).production_opts)
           "
             docker run $flags --entrypoint python "$img" -m engine.registry | grep -E "d3-turbo|reax-1|pplx-decider"
@@ -155,7 +158,7 @@ jobs:
           from engine.backends import vllm_readout as V
           family = '${{ matrix.id }}'
           print(registry.get(family).production_opts)
-          print(' '.join(V.vllm_argv(V.preset_for(family, 'ref-prod'), '/model')))
+          print(' '.join(V.vllm_argv(V.preset_for(family, 'fp8-kv-colo-bi' if family == 'jeffan' else 'ref-prod'), '/model')))
           "
             docker run $flags --entrypoint bash "$img" -n /opt/reax/entrypoint.sh
           fi

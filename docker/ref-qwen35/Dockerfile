@@ -18,8 +18,8 @@ LABEL org.opencontainers.image.title="reax-engine-ref-qwen35" \
       org.opencontainers.image.description="REAX engine track v2 reference engine for d3-turbo, pplx and REAX 1 (no weights inside)" \
       org.opencontainers.image.source="https://github.com/reaxlabs/reax-engine" \
       org.opencontainers.image.revision="${GIT_SHA}" \
-      org.opencontainers.image.licenses="LicenseRef-REAX-Engine-1.1 AND Apache-2.0" \
-      ai.reax.engine.models="d3,pplx,reax1" \
+      org.opencontainers.image.licenses="LicenseRef-REAX-Engine-1.1 AND Apache-2.0 AND MIT" \
+      ai.reax.engine.models="d3,pplx,reax1,mammoth" \
       ai.reax.engine.commit="${GIT_SHA}"
 ENV DEBIAN_FRONTEND=noninteractive PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 # gcc + Python headers: Triton / torch.compile build their launcher stubs at run time (into /tmp).
@@ -42,6 +42,7 @@ COPY engine /opt/reax/engine
 COPY LICENSE NOTICE /licenses/
 COPY LICENSES /licenses/LICENSES/
 COPY upstream/d3/LICENSE upstream/d3/NOTICE /licenses/d3/
+COPY upstream/mammoth/LICENSE upstream/mammoth/NOTICE upstream/mammoth/MODEL-LICENSE.txt /licenses/mammoth/
 # Byte-compile now: the root filesystem is read-only at run time.
 RUN /opt/venv/bin/python -m compileall -q /opt/reax/engine
 RUN useradd --uid 10002 --create-home --home-dir /home/s1m s1m

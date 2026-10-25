@@ -468,7 +468,7 @@ class ReadoutEncoder:
         cap = self.cfg.max_reread_tokens
         reread = two if self.cfg.reread_below > 0 and (not cap or len(two) <= cap) else None
         n = len(keys)
-        return Encoded(ReadoutItem(one, self.letter_ids[:n], 1.0, reread, self.cfg.reread_below), len(one), n)
+        return Encoded(ReadoutItem(one, self.letter_ids[:n], 1.0, reread_ids=reread, reread_below=self.cfg.reread_below), len(one), n)
 
     def _item(self, ids, n, qtype):
         t = temperature_for(self.cfg.temperatures, qtype, n, self.cfg.default_temperature)
@@ -591,7 +591,8 @@ class VllmClient:
     def option_values(self, ids, letter_ids):
         """Returned logprobs (processed_logprobs) or soft-capped logits (processed_logits) of the option tokens."""
         out = self._post("/v1/completions", {"model": self.model, "prompt": ids, "max_tokens": 1,
-                                             "temperature": self.completion_temperature, "top_p": 1.0,
+                                             "temperature": self.completion_temperature,
+                                             **({"top_p": 1.0} if self.completion_temperature == 1.0 else {}),
                                              "logprobs": len(letter_ids), "allowed_token_ids": letter_ids,
                                              "return_tokens_as_token_ids": True})
         top = out["choices"][0]["logprobs"]["top_logprobs"][0]
