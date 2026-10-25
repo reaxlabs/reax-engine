@@ -205,8 +205,10 @@ class App:
         if path == "/health" and method == "GET":
             if not self.ready:
                 return await self._json(send, 503, {"ok": False, "status": "warming up"})
-            return await self._json(send, 200, {"ok": True, "model": self.model, "kind": self.be.kind, "steps": self.sched.steps,
-                                                "decisions": self.sched.decisions})
+            info = {"ok": True, "model": self.model, "kind": self.be.kind, "steps": self.sched.steps, "decisions": self.sched.decisions}
+            if hasattr(self.be, "rereads"):  # jeffan: read-twice passes and their prompt tokens
+                info.update(rereads=self.be.rereads, reread_tokens=self.be.reread_tokens)
+            return await self._json(send, 200, info)
         routes = ("/internal/v1/decide", "/v1/systemone") + (("/v1/classify",) if self.classifier else ())
         if method != "POST" or path not in routes:
             return await self._json(send, 404, {"error": {"message": "not found"}})
