@@ -191,3 +191,28 @@ jobs:
             echo '${{ steps.tags.outputs.list }}' | sed 's/^/- `/; s/$/`/'
           } >> "$GITHUB_STEP_SUMMARY"
           echo "DIGEST ${{ matrix.id }} ${{ matrix.names }} ${{ steps.push.outputs.digest }}"
+
+  mirror-champions:
+    # Copies approved engine champions that the subnet's miner kit uses as a default runtime into ghcr.io/reaxlabs, byte for
+    # byte (same digest), so the kit does not depend on the author's own registry. List: mirrors/champions.txt.
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: imjasonh/setup-crane@v0.4
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Copy and verify
+        run: |
+          set -eu
+          grep -v '^#' mirrors/champions.txt | while read -r src dst; do
+            [ -n "$src" ] || continue
+            digest="${src##*@}"
+            crane copy "$src" "$dst:${digest#sha256:}"
+            got="$(crane digest "$dst@$digest")"
+            [ "$got" = "$digest" ] || { echo "digest mismatch for $dst: $got"; exit 1; }
+            echo "mirrored $src -> $dst@$digest"
+          done
