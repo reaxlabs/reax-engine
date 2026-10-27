@@ -1,0 +1,2 @@
+# <source image@sha256:digest> <destination repository>  (approved engine champions used as miner-kit defaults)
+ghcr.io/masterdev777/s1r@sha256:8467e642812347a6c34f5c3f26eb7dd42678e4a4a532aad09f3d22d9fa0138a7 ghcr.io/reaxlabs/reax-engine-champion-s1-fast

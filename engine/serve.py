@@ -18,6 +18,9 @@ on a queue; ONE scheduler thread (the only one that touches the GPU) takes every
 0 = never wait: a lone request runs immediately, a burst is packed because requests pile up while a step runs) and
 hands the probabilities back to the event loop in one callback per step.
 
+REAX_PROFILE=reference (set in the reference images) starts a model with its production recipe (registry `production_opts`:
+step budget, token cap, d3-turbo state-once, warm-up); `--opt` still overrides single options.
+
 Models: every id of engine/registry.py (`python -m engine.registry`); plumb-4b has its own fast path, the others are built
 by their registry factory with `--opt key=value` (JSON values) passed through as backend options.
 
@@ -135,7 +138,9 @@ class App:
         self.loop_hdr = b"x-s1m-internal-token"
         self._inline = getattr(backend, "encode_inline", False)  # False: encode in worker threads (HF tokenisers, llama.cpp)
         own = getattr(backend, "answer", None)  # the model's own answer shape (used by /v1/systemone)
-        if backend.kind == "gguf-cpu":
+        if backend.kind == "gguf-cpu" or getattr(backend, "family", None) == "mammoth":
+            # mammoth (qev contract): noul options are qev's ["yes", "no"]; the production engine (pplx-decider-engine
+            # 5117ec3 decide_qev) answers every path with qev_contract.product_answer -> false/true probabilities
             s1 = own
         elif backend.name == "plumb-4b":
             s1 = lambda q, p: sidecar_answer(q, backend.options(q), p)  # noqa: E731
@@ -146,13 +151,14 @@ class App:
         self.classifier = getattr(backend, "model_type", "") == "classifier_heads"
 
     # -------- one decision (all questions of a request are batched together)
-    async def decide(self, state, questions: dict, path: str, long_body: bool = False):
+    async def decide(self, state, questions: dict, path: str, long_body: bool = False, images=None):
         loop = asyncio.get_running_loop()
+        encode = (lambda st, q: self.be.encode_images(st, q, images)) if images else self.be.encode
         if long_body or not self._inline:
             encs = dict(zip(questions, await asyncio.gather(
-                *(loop.run_in_executor(None, self.be.encode, state, q) for q in questions.values()))))
+                *(loop.run_in_executor(None, encode, state, q) for q in questions.values()))))
         else:
-            encs = {qid: self.be.encode(state, q) for qid, q in questions.items()}
+            encs = {qid: encode(state, q) for qid, q in questions.items()}
         futs = {}
         for qid, enc in encs.items():
             futs[qid] = loop.create_future()
@@ -201,8 +207,10 @@ class App:
         if path == "/health" and method == "GET":
             if not self.ready:
                 return await self._json(send, 503, {"ok": False, "status": "warming up"})
-            return await self._json(send, 200, {"ok": True, "model": self.model, "kind": self.be.kind, "steps": self.sched.steps,
-                                                "decisions": self.sched.decisions})
+            info = {"ok": True, "model": self.model, "kind": self.be.kind, "steps": self.sched.steps, "decisions": self.sched.decisions}
+            if hasattr(self.be, "rereads"):  # jeffan: read-twice passes and their prompt tokens
+                info.update(rereads=self.be.rereads, reread_tokens=self.be.reread_tokens)
+            return await self._json(send, 200, info)
         routes = ("/internal/v1/decide", "/v1/systemone") + (("/v1/classify",) if self.classifier else ())
         if method != "POST" or path not in routes:
             return await self._json(send, 404, {"error": {"message": "not found"}})
@@ -246,11 +254,23 @@ class App:
                     raise ValueError("bad question type")
         except Exception as exc:  # noqa: BLE001
             return await self._json(send, 400, {"error": {"message": f"bad request: {type(exc).__name__}"}})
+        images = body.get("images")
+        if images is not None and images != []:
+            if not getattr(self.be, "supports_images", False):
+                return await self._json(send, 422, {"error": {"message": "this model takes text only"},
+                                                    "code": "unsupported_images", "fallback": "author"})
+            try:
+                from engine.backends.vllm_readout import validate_images
+                validate_images(images)
+                if len(questions) != 1:
+                    raise ValueError("an image request carries exactly one question")
+            except ValueError as exc:
+                return await self._json(send, 422, {"error": {"message": str(exc)}, "code": "invalid_images"})
         try:
             if self.classifier:
                 answers, n = await self.decide_fixed(state, questions, sum(map(len, chunks)) > LONG_TEXT)
             else:
-                answers, n = await self.decide(state, questions, path, sum(map(len, chunks)) > LONG_TEXT)
+                answers, n = await self.decide(state, questions, path, sum(map(len, chunks)) > LONG_TEXT, images=images)
         except ValueError as exc:  # 422 for a too long prompt of the vLLM-backed models (the reference adapters' status)
             code = 422 if "maximum context length" in str(exc) else 400
             return await self._json(send, code, {"error": {"message": str(exc)}})
@@ -314,6 +334,11 @@ def load_backend(name: str, a):
     except KeyError as exc:
         raise SystemExit(str(exc.args[0])) from None
     opts = parse_opts(a.opt)
+    profile = os.environ.get("REAX_PROFILE", "")
+    if profile not in ("", "reference"):
+        raise SystemExit(f"REAX_PROFILE must be 'reference' or unset, not {profile!r}")
+    if profile == "reference":  # the engine track v2 reference images: the options the production recipe of this model runs with
+        opts = {**spec.production_opts, **opts}
     if spec.id == "plumb-4b":
         from plumb_engine import PlumbBackend
         kw = dict(opts)
@@ -333,7 +358,9 @@ def load_backend(name: str, a):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="plumb-4b", help="registry id or alias (python -m engine.registry)")
+    ap.add_argument("--model", default=os.environ.get("REAX_MODEL") or "plumb-4b",
+                    help="registry id or alias (python -m engine.registry); default $REAX_MODEL, else plumb-4b "
+                         "(the engine competition v2 starts one image per model with REAX_MODEL=<id>)")
     ap.add_argument("--model-dir", default=next((os.environ[v] for v in ("PLUMB_MODEL_DIR", "REAX_MODEL_DIR", "GGUF_MODEL_DIR")
                                                  if os.environ.get(v)), "/model"))
     ap.add_argument("--host", default=None, help="default $RUNTIME_HOST or 127.0.0.1 ($RUNTIME_UDS wins over host and port)")

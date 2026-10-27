@@ -1,0 +1,6 @@
+Mammoth-1 by Baseten (Hugging Face baselabs/mammoth-1).
+Weights pin: 61cec44c281c693992e3d6ebeb44dd3402dfa186
+The pinned README declares license: mit; no LICENSE file or copyright line is supplied upstream.
+LICENSE contains the standard MIT permission text, not a claimed verbatim upstream LICENSE.
+Declaration source: https://huggingface.co/baselabs/mammoth-1/blob/61cec44c281c693992e3d6ebeb44dd3402dfa186/README.md
+Base Qwen/Qwen3.5-27B (Apache-2.0). No weights bundled.
