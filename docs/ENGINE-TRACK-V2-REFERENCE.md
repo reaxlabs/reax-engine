@@ -61,6 +61,7 @@ model. The reference of a slot is numerically the engine that serves the model i
 | `reax1` | `reax-1` | `ghcr.io/reaxlabs/reax-engine-ref-reax1` | `decisionmodels/reax-1@ca2a0cc54a537c1f5cf24e5b09387cfb357b6518` |
 | `blink` / `vision` (s1-fast / s1-vision) | `blink-v0.3-26b-a4b` | `ghcr.io/reaxlabs/reax-engine-ref-blink` | `PixilabAI/Blink-v0.3-26B-A4B-NVFP4@08caad20c1574fb76341ca809ff38fdb081f7d4a` |
 | `quyet` (Quyet-1.0-Large) | `quyet-1-large` (alias of `quyet-1.0-large`) | `ghcr.io/reaxlabs/reax-engine-ref-quyet` | `chinhnc/Quyet-1.0-Large@d997d58951e3c0da4486cf0884ca9d4d916e95dc` |
+| `rune` / `s1-pro` (pool model, Surogate Rune 26B-A4B v3) | `rune-26b-a4b-v3` (alias of `rune-26b-a4b`) | `ghcr.io/reaxlabs/reax-engine-ref-rune` | `surogate/rune-26b-a4b-GGUF@c6b360d47895bb77bdf3805a13ee5a5557ab1921` (HF-gated, 18 files verified against `manifests/s1-pro-v1.json` at start) |
 
 `d3turbo`, `pplx` and `reax1` are the same image (`docker/ref-qwen35`, one digest, three names). No weights are inside.
 
@@ -125,3 +126,8 @@ CPU regression goldens in `tests/fixtures/node_letters_golden.json` come from th
 `letters/templates.py` (SHA256 recorded in the fixture) and `serve.py` message-part construction. They cover
 choice/score/noul, structured and raw string states, Unicode and missing option descriptions. Blink text goldens
 are from parent commit 4230e50. Tests use a character tokenizer; actual HF tokenizer parity remains a GPU-check item.
+
+
+---
+
+**`ref-rune`** (s1-pro pool model): see [docs/REF-RUNE.md](REF-RUNE.md) (flags, memory budget, GPU check plan).

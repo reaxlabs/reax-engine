@@ -98,6 +98,9 @@ jobs:
           - id: blink
             file: docker/ref-blink/Dockerfile
             names: "blink"
+          - id: rune
+            file: docker/ref-rune/Dockerfile
+            names: "rune"
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk (the images are 8-12 GB)
@@ -158,9 +161,22 @@ jobs:
           from engine.backends import vllm_readout as V
           family = '${{ matrix.id }}'
           print(registry.get(family).production_opts)
-          print(' '.join(V.vllm_argv(V.preset_for(family, 'fp8-kv-colo-bi' if family == 'jeffan' else 'ref-prod'), '/model')))
+          print(' '.join(V.vllm_argv(V.preset_for(family, {'jeffan': 'fp8-kv-colo-bi', 'rune': 'ref-pool'}.get(family, 'ref-prod')), '/model')))
           "
             docker run $flags --entrypoint bash "$img" -n /opt/reax/entrypoint.sh
+            if [ "${{ matrix.id }}" = rune ]; then
+              docker run $flags --entrypoint python3 "$img" -c "
+          import hashlib, json
+          m = json.load(open('/opt/reax/s1-pro-v1.json'))
+          assert len(m['weights']['files']) == 18 and m['weights']['revision'] == 'c6b360d47895bb77bdf3805a13ee5a5557ab1921'
+          print('manifest', hashlib.sha256(open('/opt/reax/s1-pro-v1.json','rb').read()).hexdigest())
+          print('template', hashlib.sha256(open('/opt/reax/chat_template_nospace.jinja','rb').read()).hexdigest())
+          import os; assert os.path.isfile('/licenses/rune/LICENSE') and os.path.isfile('/licenses/rune/NOTICE')
+          "
+              # no weights mounted: the entrypoint must refuse to start (exit 2), not hang
+              set +e; docker run $flags "$img" >/tmp/norune.log 2>&1; rc=$?; set -e; cat /tmp/norune.log
+              [ "$rc" = 2 ] || { echo "expected exit 2 without weights, got $rc"; exit 1; }
+            fi
           fi
       - name: Pushed digest
         run: |

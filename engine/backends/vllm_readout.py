@@ -42,7 +42,7 @@ import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .base import Encoded
@@ -676,6 +676,9 @@ QUYET_PRESETS["ref-prod"] = Preset(
     tuple("0.45" if x == "0.9" else x for x in QUYET_PRESETS["fp8-kv"].args),
     gates="GPU fit and numerical equivalence vs production still required")
 
+# Where the reference image keeps the pool's chat template (docker/ref-rune/Dockerfile). Only vLLM's chat path (images) reads it;
+# text requests are tokenised by the engine with the snapshot's own template, exactly as the pool adapter does.
+RUNE_POOL_CHAT_TEMPLATE = "/opt/reax/chat_template_nospace.jinja"
 _R_BASE = ("--max-model-len", "32768", "--logprobs-mode", "processed_logits", "--max-logprobs", "300",
            "--mm-processor-cache-gb", "0", *_mm('{"image":1}'))
 _R_DET = ("--no-enable-chunked-prefill", "--max-num-batched-tokens", "32768", "-O0")
@@ -688,6 +691,14 @@ RUNE_PRESETS = {p.name: p for p in (
                     "c1 p50 71.8 ms; production-recipe perf study 7 Oct (different harness): short text c1 21.3 dec/s, "
                     "c32 141 dec/s; P300 c1 16.5, c32 59.7",
            gates="bit-exact across c1/c16/c32, restarts and processes (7 Oct study); 0/300 c1 flips"),
+    Preset("ref-pool", "engine track reference of the s1-pro POOL model: the REAX s1-pro runtime flags exactly (runtimes/s1-pro/start.sh, "
+                       "RUNE_DETERMINISTIC=1, defaults) incl. the pool chat template for the image path; GPU fraction 0.85 as in the pool",
+           _R_BASE + _R_DET + ("--max-num-seqs", "64", "--gpu-memory-utilization", "0.85", "--no-enable-prefix-caching",
+                               "--chat-template", RUNE_POOL_CHAT_TEMPLATE),
+           env={"VLLM_BATCH_INVARIANT": "1"},
+           measured="measured by the subnet (docs/CALIBRATION.md): bit-identical across restarts, concurrency 1/16/64, H100 vs RTX PRO 6000 (0 / 0 / 0 median / p99 / max); "
+                    "docs/hardware.md: 58.7 GB at util 0.60, max-model-len 8192; no measurement of this image yet",
+           gates="GPU parity vs the pool reference (selfcheck_data/s1-pro-5b11440bf57b5434.json) still required"),
     Preset("previous-f", "deterministic + prefix caching + async scheduling, 32 seqs",
            _R_BASE + _R_DET + ("--max-num-seqs", "32", "--gpu-memory-utilization", "0.65", "--enable-prefix-caching",
                                "--async-scheduling"),
@@ -905,6 +916,13 @@ def _flag_value(args, flag, default):
 
 
 # ================================================================================================ CLI: print the vLLM command
+def with_flag_value(args, flag, value):
+    """args with the value after `flag` replaced (the flag must be present)."""
+    out = list(args)
+    out[out.index(flag) + 1] = str(value)
+    return tuple(out)
+
+
 def main(argv=None):
     """`python -m engine.backends.vllm_readout FAMILY PRESET MODEL_DIR [--port N] [--exec]`: print (or exec) the vLLM
     command of a preset. The Docker entrypoint uses --exec."""
@@ -918,6 +936,10 @@ def main(argv=None):
     ap.add_argument("--exec", action="store_true")
     a, extra = ap.parse_known_args(argv)
     p = preset_for(a.family, a.preset)
+    util = os.environ.get("REAX_GPU_MEM_UTIL")       # co-location: the memory share of this engine (never changes the numerics)
+    if util:
+        float(util)
+        p = replace(p, args=with_flag_value(p.args, "--gpu-memory-utilization", util))
     cmd = vllm_argv(p, a.model_dir, host=a.host, port=a.port, extra=extra)
     if a.exec:
         os.environ.update({"VLLM_NO_USAGE_STATS": "1", "DO_NOT_TRACK": "1", "OPENAI_API_KEY": "", **p.env})

@@ -211,14 +211,17 @@ _SPECS = (
         notes="Served caps: 8,192 tokens first read (gateway limit), read-twice prompt up to 16,440 (else the first read stands, as in the author path).",
         production_opts={"preset": "fp8-kv-colo-bi", "max_input_tokens": 8192, "max_options": 255}),
     ModelSpec(
-        id="rune-26b-a4b", aliases=("rune", "s1-pro"),
+        id="rune-26b-a4b", aliases=("rune", "s1-pro", "rune-26b-a4b-v3"),
         hf_repo="surogate/rune-26b-a4b-GGUF", revision="c6b360d47895bb77bdf3805a13ee5a5557ab1921",
         licence="Apache-2.0", licence_notice="Apache-2.0 (base google/gemma-4-26B-A4B-it). HF-gated: each operator accepts the gate with their own account; do not mirror the weights.",
         params="~26B (4B active)", arch="Gemma-4 MoE (from the base config: 30 layers, 25 sliding + 5 full attention, 128 experts top-8); the repo name says GGUF but the files are bf16 safetensors",
         readout="Surogate decisions v1 (system line + SHARED STATE JSON user turn), letters A..Z then single-token two-letter codes, raw soft-capped logits / T=2.0",
         backend_kind="vllm", status="vllm-backed", factory=_rune, gated=True, weights_gb=52,
         hardware="80+ GB card (60 GB minimum); measured RTX PRO 6000 97.9 GB",
-        notes="Rune's own config.json is not readable without the gate; architecture is taken from the base model's config."),
+        notes="Rune's own config.json is not readable without the gate; architecture is taken from the base model's config. "
+              "REAX_PROFILE=reference uses the ref-pool preset = the flags of the REAX s1-pro pool runtime (text only; the weights are "
+              "verified against manifests/s1-pro-v1.json by the image entrypoint).",
+        production_opts={"preset": "ref-pool", "max_input_tokens": 4096, "max_options": 64}),
     ModelSpec(
         id="blink-v0.3-26b-a4b", aliases=("blink", "s1-fast-2"),
         hf_repo="PixilabAI/Blink-v0.3-26B-A4B-NVFP4", revision="08caad20c1574fb76341ca809ff38fdb081f7d4a",
