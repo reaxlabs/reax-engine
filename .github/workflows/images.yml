@@ -2,7 +2,7 @@ name: images
 
 on:
   push:
-    branches: [main, "fusion/engine-composite-open-*"]
+    branches: [main, "fusion/engine-composite-open-*", "mirror/*"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
