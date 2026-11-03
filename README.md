@@ -12,6 +12,13 @@ general LLM serving engine: no text generation, no chat/completions API, no KV c
 For three Gemma-4 models it delegates the forward pass to vLLM (marked "vLLM-backed" below) and adds the decision prompt,
 readout, calibration, API and evaluation; for those models the REAX part is the decision layer, not the kernels.
 
+## REAX 1.3 (`reax13/`, two-part ensemble on one GPU)
+[`reax13/`](reax13/) is the inference engine of [decisionmodels/REAX-1.3](https://huggingface.co/decisionmodels/REAX-1.3): both model
+parts (a Gemma-4-31B line and a Qwen-line 27B) load in FP8 on one NVIDIA RTX PRO 6000 96 GB, every question goes to both, and their
+per-option probabilities are averaged 50/50. It ships an HTTP server (`/v1/systemone`) and a custom engine for the
+[Decision Index kit](https://github.com/apolinario/decision-index). Build, run and test steps: [reax13/README.md](reax13/README.md);
+the model card gives the same steps pinned to a commit of this repository.
+
 ## Models (one registry, one server, one evaluation harness)
 `python -m engine.registry` prints the table; details and every measurement: [docs/MODELS.md](docs/MODELS.md).
 
