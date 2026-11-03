@@ -24,9 +24,11 @@ SOFTWARE.
 -------------------------------------------------------------------------------
 Scope. This licence covers the UID 240 authors' own code and the REAX Engine
 parts in this directory. Code that a file header, opt/e62/NOTICE,
-opt/blink/NOTICE.bj, opt/vision/NOTICE, the e63/NOTICE files or licenses/
-names as copied or adapted from a third party keeps that third party's licence
+opt/blink/NOTICE.bj, opt/vision/NOTICE, the e63/NOTICE files,
+opt/reax*/engine/reax_seed/LICENSE or licenses/ names as copied or adapted from a third party keeps that third party's licence
 (among them: vLLM, Apache-2.0; NVIDIA CUTLASS headers, BSD-3-Clause;
 flash-linear-attention, MIT; Hugging Face transformers, Apache-2.0; model
 prompt contracts of their authors, Apache-2.0). The licence texts under which
-the authors first published this code are kept in upstream-licenses/.
+the authors first published this code are kept in upstream-licenses/. The
+authors' own grant under Apache-2.0 (upstream-licenses/LICENSE.Apache-2.0)
+continues to apply to their code.

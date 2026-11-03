@@ -1,11 +1,12 @@
 # UID 240 engine (REAX engine competition v2, dm-all champion): provenance
 
-This directory is the engine source of SN92 UID 240, copied unchanged from the miner's public repository. Every source
-file is byte-identical to the source commit below and listed in the miner's `SHA256SUMS`. Three files differ from the
-source commit: this `PROVENANCE.md` (added), `LICENSE` (now the MIT License, see below) and the miner's two licence files,
-moved unchanged to `upstream-licenses/` (`LICENSE` -> `upstream-licenses/LICENSE.Apache-2.0`, `LICENSE-REAX-ENGINE-1.1` ->
-`upstream-licenses/LICENSE-REAX-ENGINE-1.1`; their sha256 equal the `SHA256SUMS` entries for `LICENSE` and
-`LICENSE-REAX-ENGINE-1.1`). All other 313 entries pass `sha256sum -c SHA256SUMS` in this directory. The miner's own `README.md` describes the engine,
+This directory is the engine source of SN92 UID 240, copied from the miner's public repository; all source files are
+unchanged and listed in the miner's `SHA256SUMS`. Changes against the source commit below: `PROVENANCE.md` added, `LICENSE`
+replaced by the MIT License, and the miner's two licence files moved unchanged to `upstream-licenses/` (`LICENSE` ->
+`upstream-licenses/LICENSE.Apache-2.0`, `LICENSE-REAX-ENGINE-1.1` -> `upstream-licenses/LICENSE-REAX-ENGINE-1.1`; their
+sha256 equal the `SHA256SUMS` entries for `LICENSE` and `LICENSE-REAX-ENGINE-1.1`). The other 313 entries pass
+`sha256sum -c SHA256SUMS` in this directory. The miner's `README.md` refers to `LICENSE` and `LICENSE-REAX-ENGINE-1.1`;
+those texts are now in `upstream-licenses/`. The miner's own `README.md` describes the engine,
 its 21 native libraries and their build.
 
 | | |
@@ -30,10 +31,11 @@ so host-side bytes differ), all built for `sm_120a`. The build steps per library
 
 This directory is licensed under the **MIT License** (`LICENSE`), with the authors' copyright and attribution kept.
 Third-party code inside it keeps its own licence, as listed in `LICENSE` (scope), the file headers, `opt/e62/NOTICE`,
-`opt/blink/NOTICE.bj`, `opt/vision/NOTICE`, the `e63/NOTICE` files and `licenses/` (vLLM: Apache-2.0; NVIDIA CUTLASS
+`opt/blink/NOTICE.bj`, `opt/vision/NOTICE`, the `e63/NOTICE` files, `opt/reax*/engine/reax_seed/LICENSE` and `licenses/` (vLLM: Apache-2.0; NVIDIA CUTLASS
 headers: BSD-3-Clause; flash-linear-attention: MIT; Hugging Face transformers: Apache-2.0; model prompt contracts:
 Apache-2.0 by their authors; mammoth-1 notes in `licenses/mammoth/`). File headers are left as published, so a header that
-says Apache-2.0 or REAX Engine License 1.1 shows the licence the code was first published under.
+says Apache-2.0 or REAX Engine License 1.1 shows the licence the code was first published under. The authors' own grant
+under Apache-2.0 (upstream-licenses/LICENSE.Apache-2.0) continues to apply to their code.
 
 How the authors first published it (texts kept in `upstream-licenses/`, notices kept in place):
 - `opt/blink`, `opt/vision`, `opt/jeffan`, `opt/e62`: Apache-2.0.
@@ -45,10 +47,10 @@ Basis for the MIT licence here:
   NOTICE files and the file headers.
 - `opt/reax` and `opt/reax-r1` are built on the REAX Engine, whose licensor (productivity-boost.com Betriebs UG
   (haftungsbeschränkt) & Co. KG) licenses its own code in this repository under MIT.
-- Entries to the REAX subnet's competitions grant the REAX Engine's licensor a licence to their changes: the REAX Engine
-  License 1.0 (tags `license-1.0` to `license-1.1` of this repository) grants a perpetual, sublicensable licence for entries
-  based on it, and the engine competition v2 licence condition (reax-subnet `docs/ENGINE-COMPETITION-V2.md`) grants a
-  licence to use, modify and merge a committed `dm-all` engine into the REAX Engine.
+- REAX subnet competition terms: the REAX Engine License 1.0 (tags `license-1.0` to `license-1.1`) grants the licensor a
+  perpetual, sublicensable licence to entries based on code under it; the engine competition v2 rules (reax-subnet
+  `docs/ENGINE-COMPETITION-V2.md`, licence condition, text labelled draft there) state that a `dm-all` commitment grants a
+  licence to use, modify and merge the engine into the REAX Engine.
 
 ## Credits
 
