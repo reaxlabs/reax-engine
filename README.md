@@ -24,10 +24,10 @@ Images are pinned by digest; a digest named here or in the subnet's miner kit is
 
 | use | engine | image or path | source |
 |---|---|---|---|
-| mammoth-1 (s1-pro), fastest: engine competition v2 dm-all champion UID 240 | UID 240 engine | `ghcr.io/reaxlabs/reax-engine-dm240@sha256:7941f51a96086cc6d40b527d8062c2b424335875462114aa36eee7cb9d8244d5` (same digest as `ghcr.io/masterdev777/dm240`) | [`champions/uid240/`](champions/uid240/) (miner source, Apache-2.0 + REAX Engine License 1.1, [provenance](champions/uid240/PROVENANCE.md)) |
+| mammoth-1 (s1-pro), fastest: engine competition v2 dm-all champion UID 240 | UID 240 engine | `ghcr.io/reaxlabs/reax-engine-dm240@sha256:7941f51a96086cc6d40b527d8062c2b424335875462114aa36eee7cb9d8244d5` (same digest as `ghcr.io/masterdev777/dm240`) | [`champions/uid240/`](champions/uid240/) (miner source, MIT, [provenance](champions/uid240/PROVENANCE.md)) |
 | mammoth-1 (s1-pro), reference | ref-mammoth | `ghcr.io/reaxlabs/reax-engine-ref-mammoth@sha256:3080a593060542bccbdaf7cf0c66593fc182d9753b3facd50206df86d93b8588` | `docker/ref-qwen35/Dockerfile`, `REAX_MODEL=mammoth-1` |
 | Plumb-4B (s1-fast), fastest: engine competition champion UID 62 | s1-fast champion | `ghcr.io/reaxlabs/reax-engine-champion-s1-fast@sha256:8467e642812347a6c34f5c3f26eb7dd42678e4a4a532aad09f3d22d9fa0138a7` (same digest as `ghcr.io/masterdev777/s1r`) | `mirrors/champions.txt` |
-| Plumb-4B (s1-fast), reference | s1-fast | `ghcr.io/reaxlabs/reax-engine-s1-fast@sha256:9bd41632e33bd90377f7e29bdb9410b18cfe1fb557200160b9ebe9222abcecea`; 1.2.0rc1 runtime `ghcr.io/reaxlabs/reax-s1-fast-runtime@sha256:d857a90eaf168d1db3ca982c5111b10fb61a65cc5f7113ea9e391fe6fca17b71` | `docker/s1-fast/Dockerfile` |
+| Plumb-4B (s1-fast), reference | s1-fast | `ghcr.io/reaxlabs/reax-engine-s1-fast@sha256:9bd41632e33bd90377f7e29bdb9410b18cfe1fb557200160b9ebe9222abcecea` (until reax-subnet 1.2.0rc9.post5: `ghcr.io/reaxlabs/reax-s1-fast-runtime@sha256:d857a90eaf168d1db3ca982c5111b10fb61a65cc5f7113ea9e391fe6fca17b71`) | `docker/s1-fast/Dockerfile` |
 | d3-turbo, REAX 1, Perplexity Decider (27B Qwen line), reference | ref-d3turbo | `ghcr.io/reaxlabs/reax-engine-ref-d3turbo@sha256:503cd9e00114dada655691de44b5a4ff1a08a985bcaf0021121967a73e436eac` | `docker/ref-qwen35/Dockerfile` |
 | Blink v0.3 text, reference | ref-blink | `ghcr.io/reaxlabs/reax-engine-ref-blink@sha256:ab02e141ffb5672dc68e137736be0a6fa15445c7cc824a51f6ad2a6664c0e10a` | `docker/ref-blink/Dockerfile` |
 | Blink vision (one image), reference | ref-blink (eager) | `ghcr.io/reaxlabs/reax-engine-ref-blink@sha256:97d06a91453979d6756176aba4a1cb1d78b38390643c37ed1b83f79a4ff9f606` | `docker/ref-blink/Dockerfile` |
@@ -131,6 +131,6 @@ The REAX Engine is licensed under the [MIT License](LICENSE).
 - **Third-party code** (prompt contracts adapted from model authors, FP8 kernels from Hugging Face; Apache-2.0 or MIT) keeps
   its own licence; see [NOTICE](NOTICE) and the file headers. Model weights are not part of this repository and keep their
   own licences.
-- **Miner engines** under `champions/` (first: UID 240) are the miners' published source, unchanged, under the licences in
-  their directories (UID 240: Apache-2.0, and the REAX Engine License 1.1 for its parts built on the REAX Engine). The MIT
-  License of this repository does not apply to them.
+- **Miner engines** under `champions/` (first: UID 240) are the miners' published source, licensed here under the MIT License
+  with their authors' attribution kept (`champions/uid240/LICENSE`; basis and the licences the authors first published under:
+  `champions/uid240/PROVENANCE.md`). Third-party code inside them keeps its own licence.
