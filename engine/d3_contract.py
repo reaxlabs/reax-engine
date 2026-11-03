@@ -130,6 +130,30 @@ def render(
     )
 
 
+# prefix_bidir (vllm-sr/d3-turbo d3_format.py, same logic): the state block is every leading token that ends at or before
+# the end of the state text; a token straddling into "\n\nQuestion:\n" belongs to the question block.
+STATE_MARK = "State:\n"
+QUESTION_MARK = "\n\nQuestion:\n"
+
+
+def encode_split(tokenizer, text: str, state: Any) -> tuple[list[int], int]:
+    """(token ids of the rendered prompt, number of leading state-block tokens)."""
+    body = describe(state) if state not in (None, "") else "(empty)"
+    start = text.find(STATE_MARK + body + QUESTION_MARK)
+    if start < 0:
+        raise ValueError("rendered prompt has no state segment followed by the question block")
+    end = start + len(STATE_MARK) + len(body)
+    enc = tokenizer(text, add_special_tokens=False, return_offsets_mapping=True)
+    ids, n = enc["input_ids"], 0
+    for _, stop in enc["offset_mapping"]:
+        if stop > end:
+            break
+        n += 1
+    if not 0 < n < len(ids):
+        raise ValueError("empty state or question block")
+    return ids, n
+
+
 def to_answer(
     question: dict[str, Any], probabilities: Sequence[float]
 ) -> dict[str, Any]:

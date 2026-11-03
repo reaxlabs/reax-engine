@@ -8,7 +8,7 @@ from engine.backends.common import s1_answer, softmax_t
 
 
 def test_all_models_present_and_consistent():
-    expected = {"plumb-4b", "pplx-decider-v1.1-27b", "d3", "quyet-1.0-large", "rune-26b-a4b", "blink-v0.3-26b-a4b", "gutsy-0.8b", "plumb-4b-q8",
+    expected = {"plumb-4b", "pplx-decider-v1.1-27b", "d3", "d3-turbo", "mammoth-1", "reax-1", "quyet-1.0-large", "jeffan-31b-1710", "rune-26b-a4b", "blink-v0.3-26b-a4b", "gutsy-0.8b", "plumb-4b-q8",
                 "s1-llm-auto-router"}
     assert set(registry.REGISTRY) == expected
     for s in registry.REGISTRY.values():
@@ -21,7 +21,7 @@ def test_all_models_present_and_consistent():
 
 def test_status_by_model():
     st = {i: s.status for i, s in registry.REGISTRY.items()}
-    assert st["pplx-decider-v1.1-27b"] == st["d3"] == st["plumb-4b"] == "native"
+    assert st["pplx-decider-v1.1-27b"] == st["d3"] == st["d3-turbo"] == st["reax-1"] == st["plumb-4b"] == "native"
     assert st["quyet-1.0-large"] == st["rune-26b-a4b"] == "vllm-backed"
     assert st["gutsy-0.8b"] == st["plumb-4b-q8"] == "cpu"
     assert st["s1-llm-auto-router"] == "classifier"

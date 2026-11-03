@@ -41,6 +41,8 @@ class ModelSpec:
     weights_gb: float = 0.0             # download size (0 = not applicable)
     notes: str = ""
     model_kind: str = "decision"        # "decision" (readout over answer options) | "classifier_heads" (encoder + fixed heads)
+    production_opts: dict = field(default_factory=dict, compare=False)   # backend options of the production recipe, applied by
+    #                                                                       serve.py when REAX_PROFILE=reference (the engine track v2 images)
 
     def __post_init__(self):
         assert self.status in STATUSES, self.status
@@ -83,9 +85,29 @@ def _d3(model_dir, **opts):
     return Qwen35Backend(model_dir, family="d3", name="d3", **opts)
 
 
+def _d3_turbo(model_dir, **opts):
+    from engine.backends.qwen35 import Qwen35Backend
+    return Qwen35Backend(model_dir, family="d3", name="d3-turbo", **opts)
+
+
+def _mammoth(model_dir, **opts):
+    from engine.backends.qwen35 import Qwen35Backend
+    return Qwen35Backend(model_dir, family="mammoth", name="mammoth-1", **opts)
+
+
+def _reax1(model_dir, **opts):
+    from engine.backends.qwen35 import Qwen35Backend
+    return Qwen35Backend(model_dir, family="reax1", name="reax-1", **opts)
+
+
 def _quyet(model_dir, **opts):
     from engine.backends.vllm_readout import VllmReadoutBackend
     return VllmReadoutBackend(model_dir, family="quyet", name="quyet-1.0-large", **opts)
+
+
+def _jeffan(model_dir, **opts):
+    from engine.backends.vllm_readout import VllmReadoutBackend
+    return VllmReadoutBackend(model_dir, family="jeffan", name="jeffan-31b-1710", **opts)
 
 
 def _rune(model_dir, **opts):
@@ -123,7 +145,8 @@ _SPECS = (
         readout="255-way code readout at the last position, T from decision_config.json; prompt adapted from the author's code",
         backend_kind="native-gpu", status="native", factory=_pplx, weights_gb=52,
         hardware="80+ GB card for bf16; FP8 28.7 GiB; 32 GB cards with CIE_LAZY_LOAD=1; measured on RTX PRO 6000 (sm_120), H100/H200/B200, RTX 5090",
-        notes="stock vLLM/SGLang/TensorRT-LLM cannot serve it (noncausal attention)"),
+        notes="stock vLLM/SGLang/TensorRT-LLM cannot serve it (noncausal attention)",
+        production_opts={"budget": 4096, "warm_steps": 200}),
     ModelSpec(
         id="d3", aliases=("vllm-sr-d3",),
         hf_repo="vllm-sr/d3", revision="225be8b1e2270becab69c5fe05b26f99cbbdd66b",
@@ -134,23 +157,71 @@ _SPECS = (
         hardware="same as pplx-decider; long prompts (64k+ tokens) need the int64 index fixes in this repo",
         notes="decision_config.json says attention_mode=noncausal_full_attention. Contract verified against revisions 5ce995d and 225be8b."),
     ModelSpec(
-        id="quyet-1.0-large", aliases=("quyet",),
-        hf_repo="chinhnc/Quyet-1.0-Large", revision="9a0f051112ba4301f6e4c8b87fc088ce00b11aae",
+        id="d3-turbo", aliases=("d3turbo", "vllm-sr-d3-turbo"),
+        hf_repo="vllm-sr/d3-turbo", revision="cfa0d41d253467e4742d5aedb46d4f0ef3b84b41",
+        licence="Apache-2.0", licence_notice="Apache-2.0; (c) vLLM Semantic Router Team; keep upstream/d3/LICENSE and NOTICE. Built on Qwen/Qwen3.8-27B.",
+        params="26.1B", arch="Qwen3.5 hybrid (same text stack as d3): 48 Gated-DeltaNet + 16 full-attention layers with PREFIX_BIDIR attention (the state block attends to itself only, the question block reads the whole row)",
+        readout="d3-code-readout-v1 as d3 (system + State/Question/Options user turn, 255 single-token codes, fp32 readout); decision_config.json says attention_mode=prefix_bidir",
+        backend_kind="native-gpu", status="native", factory=_d3_turbo, weights_gb=52,
+        hardware="same as d3; FP8 ~31 GiB with CIE_LAZY_LOAD=1, step budget 16384 tokens ~35 GiB",
+        notes="production recipe of the s1-pro d3-turbo node: state-once through forward_groups for every call (REAX_PROFILE=reference applies it: "
+              "shared_state, shared_group, shared_until 64, budget 16384, 8192-token cap per question); without the profile the engine runs plain prefix_bidir.",
+        production_opts={"budget": 16384, "max_input_tokens": 8192, "warm_steps": 200, "shared_state": True, "shared_group": True,
+                         "shared_until": 64, "shared_mixq": False}),
+    ModelSpec(
+        id="mammoth-1", aliases=("mammoth",),
+        hf_repo="baselabs/mammoth-1", revision="61cec44c281c693992e3d6ebeb44dd3402dfa186",
+        licence="MIT", licence_notice="MIT; keep upstream/mammoth/LICENSE. qev contract port: Apache-2.0, OneJev authors (NOTICE).",
+        params="27B", arch="Qwen3.5 hybrid: Gated-DeltaNet causal, full attention prefix_bidir",
+        readout="qev-labels-v2; A..Z then two-letter slots; slot_lm fp32, T=1.0",
+        backend_kind="native-gpu", status="native", factory=_mammoth, weights_gb=54.7,
+        hardware="FP8 state-once ~35.2 GB peak; two-engine fit requires GPU check on RTX PRO 6000 96 GB",
+        notes="Production private engine 5117ec3; cap 16384, state-once prefix_bidir. CIE_LAZY_LOAD=1 in reference image.",
+        production_opts={"linear": "fp8", "compile": "1", "gva": "1", "budget": 16384, "max_input_tokens": 16384,
+                         "warm_steps": 200, "shared_state": True, "shared_group": True, "shared_until": 64, "shared_mixq": False}),
+    ModelSpec(
+        id="reax-1", aliases=("reax1", "decisionmodels-reax-1"),
+        hf_repo="decisionmodels/reax-1", revision="ca2a0cc54a537c1f5cf24e5b09387cfb357b6518",
+        licence="Apache-2.0", licence_notice="Apache-2.0 (decisionmodels.io REAX 1 release). Keep the repo LICENSE/NOTICE.",
+        params="26.1B", arch="Qwen3.5 hybrid as pplx-decider-v1.1-27b (48 Gated-DeltaNet + 16 NONCAUSAL full-attention layers), joint request format (protocol v3)",
+        readout="pplx-decider v1.2 joint format: one sequence per request, 255-way code readout at the question marker token, T from decision_config.json; "
+                "tokenised by the author's Encoder from the checkpoint's source/src/pplx_decider (run from the read-only weights mount)",
+        backend_kind="native-gpu", status="native", factory=_reax1, weights_gb=48.6,
+        hardware="same as pplx-decider; FP8 ~31-34.5 GiB on RTX PRO 6000 (production recipe: CIE_LAZY_LOAD=1, budget 8192)",
+        notes="served as one question per sequence (the production node's --v12-split single); a question over 8192 tokens gets 422",
+        production_opts={"budget": 8192, "max_input_tokens": 8192, "warm_steps": 200}),
+    ModelSpec(
+        id="quyet-1.0-large", aliases=("quyet", "quyet-1-large"),
+        hf_repo="chinhnc/Quyet-1.0-Large", revision="d997d58951e3c0da4486cf0884ca9d4d916e95dc",
         licence="Apache-2.0", licence_notice='Apache-2.0; keep NOTICE including its first line "Quyet by Chinh Nguyen" on redistribution. Base google/gemma-4-31B-it.',
         params="31.3B", arch="Gemma-4 dense: 60 layers = 50 sliding-window (1024) + 10 full attention (causal), hidden 5376, merged LoRA r16",
         readout="prompt v2 (single user turn, compact JSON state), option letters A..J (native max 10 options), per-type temperatures from quyet_config.json (choice 1.3007 / score 1.3159 / noul 1.4957)",
         backend_kind="vllm", status="vllm-backed", factory=_quyet, weights_gb=62.5,
         hardware="80+ GB card (bf16 62.5 GB); measured RTX PRO 6000 96 GB",
-        notes="Weights, config, tokenizer and quyet_config.json are byte-identical between the measured revision d997d58951e3 and the pinned one (only README/MANIFEST differ)."),
+        notes="Reference profile uses production FP8 + FP8 KV recipe, utilization 0.45 for two-engine fit (GPU gate pending).",
+        production_opts={"preset": "ref-prod", "max_input_tokens": 8000, "max_options": 10, "no_truncation": True}),
     ModelSpec(
-        id="rune-26b-a4b", aliases=("rune", "s1-pro"),
+        id="jeffan-31b-1710", aliases=("jeffan",),
+        hf_repo="tattrongvu/Jeffan-31b-1710", revision="cebfa86c2bed2b5c83b12e44de4374b20c87fd79",
+        licence="Apache-2.0", licence_notice="Apache-2.0 (LICENSE in the repo since 22 Oct 2026); base google/gemma-4-31B-it (Apache-2.0).",
+        params="31.3B", arch="Gemma-4 dense (Gemma-4-31B base): 60 layers = 50 sliding-window (1024) + 10 full attention (causal), hidden 5376",
+        readout="dm_decision_engine answer-code readout (layout state_first): system line + State/Question/Options user turn, single-token codes A..Z, AA.. (255), restricted softmax T=1, conditional read-twice re-read below top-1 0.9",
+        backend_kind="vllm", status="vllm-backed", factory=_jeffan, weights_gb=62.6,
+        hardware="FP8 weights + FP8 KV: one 96 GB card shared with another model (util 0.44); bf16 needs 80+ GB",
+        notes="Served caps: 8,192 tokens first read (gateway limit), read-twice prompt up to 16,440 (else the first read stands, as in the author path).",
+        production_opts={"preset": "fp8-kv-colo-bi", "max_input_tokens": 8192, "max_options": 255}),
+    ModelSpec(
+        id="rune-26b-a4b", aliases=("rune", "s1-pro", "rune-26b-a4b-v3"),
         hf_repo="surogate/rune-26b-a4b-GGUF", revision="c6b360d47895bb77bdf3805a13ee5a5557ab1921",
         licence="Apache-2.0", licence_notice="Apache-2.0 (base google/gemma-4-26B-A4B-it). HF-gated: each operator accepts the gate with their own account; do not mirror the weights.",
         params="~26B (4B active)", arch="Gemma-4 MoE (from the base config: 30 layers, 25 sliding + 5 full attention, 128 experts top-8); the repo name says GGUF but the files are bf16 safetensors",
         readout="Surogate decisions v1 (system line + SHARED STATE JSON user turn), letters A..Z then single-token two-letter codes, raw soft-capped logits / T=2.0",
         backend_kind="vllm", status="vllm-backed", factory=_rune, gated=True, weights_gb=52,
         hardware="80+ GB card (60 GB minimum); measured RTX PRO 6000 97.9 GB",
-        notes="Rune's own config.json is not readable without the gate; architecture is taken from the base model's config."),
+        notes="Rune's own config.json is not readable without the gate; architecture is taken from the base model's config. "
+              "REAX_PROFILE=reference uses the ref-pool preset = the flags of the REAX s1-pro pool runtime (text only; the weights are "
+              "verified against manifests/s1-pro-v1.json by the image entrypoint).",
+        production_opts={"preset": "ref-pool", "max_input_tokens": 4096, "max_options": 64}),
     ModelSpec(
         id="blink-v0.3-26b-a4b", aliases=("blink", "s1-fast-2"),
         hf_repo="PixilabAI/Blink-v0.3-26B-A4B-NVFP4", revision="08caad20c1574fb76341ca809ff38fdb081f7d4a",
@@ -159,7 +230,9 @@ _SPECS = (
         readout="Surogate decisions v1 (same prompt as Rune), letters A..Z (two-letter codes above 26 options), softmax over processed logprobs / T=1.3",
         backend_kind="vllm", status="vllm-backed", factory=_blink, weights_gb=17.5,
         hardware="Blackwell GPU (NVFP4); 31 GiB peak measured at utilization 0.30, 32k context; measured RTX PRO 6000",
-        notes="serving recipe = vLLM with the bi1 preset (batch-invariant, c1 zero flips); the author's own readme serves it with plain vLLM."),
+        notes="serving recipe = vLLM with the bi1 preset (batch-invariant, c1 zero flips); the author's own readme serves it with plain vLLM. "
+              "REAX_PROFILE=reference uses the ref-prod preset (the s1-fast production flags at gpu_memory_utilization 0.45).",
+        production_opts={"preset": "ref-prod", "max_input_tokens": 8000}),
     ModelSpec(
         id="gutsy-0.8b", aliases=("gutsy", "s1-cpu"),
         hf_repo="kouhxp/gutsy", revision="f9995fe26a337f1a4ea3f1a5ed38c9799e5a8f63",

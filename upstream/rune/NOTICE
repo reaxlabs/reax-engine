@@ -1,0 +1,10 @@
+Surogate Rune 26B-A4B v3 (s1-pro pool model), weights surogate/rune-26b-a4b-GGUF @ c6b360d47895bb77bdf3805a13ee5a5557ab1921
+(the repository name says GGUF; the files are bf16 safetensors). Base model google/gemma-4-26B-A4B-it, Copyright Google LLC,
+Apache License 2.0 (LICENSE in this directory is the Apache-2.0 text). The Hugging Face repository is gated and its own
+LICENSE/NOTICE files are not readable without accepting the gate; they are therefore NOT reproduced here. No model weights are
+bundled: operators accept the gate with their own account and mount the snapshot read-only at /model.
+
+chat_template_nospace.jinja is the s1-pro pool runtime's modified Gemma 4 chat template (Apache-2.0, see its header),
+copied byte-for-byte from the reax-subnet runtimes/s1-pro directory at the commit in SUBNET-COMMIT.
+rune_adapter.py and start.sh in this directory are the pool runtime's reference adapter and entrypoint, kept ONLY as
+test fixtures/provenance (SOURCE-SHA256SUMS); they are not part of the image.

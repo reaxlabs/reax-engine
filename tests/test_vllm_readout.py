@@ -207,3 +207,76 @@ def test_blink_presets_and_defaults():
     e = enc("blink")                                            # Rune prompt path, T=1.3
     item = e.encode("s", {"type": "choice", "instructions": "i", "criteria": {"a": "x", "b": "y"}})
     assert item.payload.temperature == 1.3 and item.n_options == 2
+
+
+# ---------------------------------------------------------------------------------- jeffan
+def test_jeffan_prompt_text_and_reread_prompt():
+    e = enc("jeffan")
+    it = e.encode({"a": 1}, CHOICE)
+    text = FakeTok().decode(it.payload.ids)
+    body = 'State:\n{"a": 1}\n\nQuestion:\nPick one.\n\nOptions:\nA: x: first\nB: y\nC: z: {"k": 1}'
+    head = "<system>" + V.JEFFAN_SYSTEM + "</><user>"
+    assert text == head + body + "\n\n" + V.JEFFAN_CLOSING + "</><model>"
+    two = FakeTok().decode(it.payload.reread_ids)
+    assert two == head + body + "\n\n" + V.JEFFAN_CLOSING + "\n\nThe same input again:\n\n" + body + "\n\n" + V.JEFFAN_CLOSING + "</><model>"
+    assert two.startswith(text[:-len("</><model>")])          # the read-twice prompt extends the first read (prefix cache)
+    assert it.payload.temperature == 1.0 and it.payload.reread_below == 0.9 and it.n_tokens == len(it.payload.ids)
+    assert it.payload.letter_ids == [ord("A"), ord("B"), ord("C")]
+
+
+def test_jeffan_noul_score_empty_and_options():
+    e = enc("jeffan")
+    assert e.options(NOUL) == ["false", "true"] and e.options(SCORE) == ["0", "1", "2"]
+    n = FakeTok().decode(e.encode(None, {"type": "noul", "instructions": "", "criteria": {"true": "yes it is"}}).payload.ids)
+    assert "State:\n(empty)\n\nQuestion:\nChoose the best matching option.\n\nOptions:\nA: No / false\nB: yes it is\n\n" in n
+    s = FakeTok().decode(e.encode("raw", SCORE).payload.ids)
+    assert "State:\nraw\n\nQuestion:\nHow much?\n" + V.JEFFAN_SCORE_HINT + "\n\nOptions:\nA: none\nB: some\nC: lots" in s
+    assert e.options({"type": "choice", "criteria": ["p", "q"]}) == ["p", "q"]
+    for bad in ({"type": "x"}, {"type": "choice", "criteria": {}}, {"type": "score", "criteria": {}}, "no"):
+        with pytest.raises(V.QuestionError):
+            e.encode("s", bad)
+    with pytest.raises(V.QuestionError, match="too many options"):    # FakeTok has 26 single-token codes
+        e.encode("s", {"type": "choice", "criteria": {f"k{i}": None for i in range(27)}})
+
+
+def test_jeffan_limits():
+    one = enc("jeffan").encode("w" * 100, CHOICE).payload
+    n1, n2 = len(one.ids), len(one.reread_ids)
+    e = enc("jeffan", max_prompt_tokens=n1, max_reread_tokens=n2 - 1)
+    assert e.encode("w" * 100, CHOICE).payload.reread_ids is None      # read-twice prompt over its cap: first read stands
+    assert enc("jeffan", max_prompt_tokens=n1, max_reread_tokens=n2).encode("w" * 100, CHOICE).payload.reread_ids == one.reread_ids
+    with pytest.raises(ValueError, match="maximum context length"):
+        e.encode("w" * 101, CHOICE)
+    assert enc("jeffan", reread_below=0).encode("s", CHOICE).payload.reread_ids is None
+
+
+def test_jeffan_answer_shapes():
+    e = enc("jeffan")
+    a = e.answer(CHOICE, [0.2, 0.5, 0.3])
+    assert a == {"type": "choice", "choice": "y", "confidence": 0.5, "probabilities": {"x": 0.2, "y": 0.5, "z": 0.3}}
+    n = e.answer(NOUL, [0.3, 0.7])
+    assert n["noul"] == 0.7 and n["confidence"] == 0.7 and n["probabilities"] == {"false": 0.3, "true": 0.7}
+    s = e.answer(SCORE, [0.0, 0.5, 0.5])
+    assert s["score"] == 1.5 and s["confidence"] == 0.5 and s["legend"] == {"0": "none", "1": "some", "2": "lots"}
+
+
+def test_jeffan_reread_roundtrip(fake_vllm):
+    be = V.VllmReadoutBackend("unused", family="jeffan", name="j", base_url=fake_vllm, tokenizer=FakeTok())
+    it = be.encode("state", CHOICE)                  # fake logits 3,2,1 -> top-1 0.665 < 0.9 -> re-read
+    out = be.run([it])
+    assert len(FakeVllm.seen) == 2 and FakeVllm.seen[1]["prompt"] == it.payload.reread_ids and be.rereads == 1
+    ref = [math.exp(v) for v in (3, 2, 1)]
+    assert out[0] == pytest.approx([v / sum(ref) for v in ref])
+    FakeVllm.seen.clear()
+    be2 = V.VllmReadoutBackend("unused", family="jeffan", name="j", base_url=fake_vllm, tokenizer=FakeTok(), reread_below=0.5)
+    be2.run([be2.encode("state", CHOICE)])           # 0.665 >= 0.5: no re-read
+    assert len(FakeVllm.seen) == 1 and be2.rereads == 0
+    be.close(), be2.close()
+
+
+def test_jeffan_presets():
+    p = V.preset_for("jeffan")
+    argv = V.vllm_argv(p, "/m")
+    assert p.name == "fp8-kv" and argv[argv.index("--kv-cache-dtype") + 1] == "fp8"
+    assert argv[argv.index("--max-model-len") + 1] == "16448" and argv[argv.index("--max-logprobs") + 1] == "256"
+    assert "--quantization" not in V.vllm_argv(V.preset_for("jeffan", "bf16"), "/m")
