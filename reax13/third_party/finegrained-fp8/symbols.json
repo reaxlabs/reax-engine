@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "module": "_finegrained_fp8_cuda_5fe9dbb",
+  "functions": [
+    {
+      "name": "fp8_act_quant",
+      "qualname": "fp8_act_quant",
+      "module": "_finegrained_fp8_cuda_5fe9dbb.utils",
+      "kind": "function",
+      "doc": "Quantize activations to FP8 with per-block dynamic scaling.\n\nSplits the last dimension of ``x`` into blocks of ``block_size`` elements,\ncomputes ``scale = max(|x_block|) / 448`` per block, and quantizes to\n``float8_e4m3fn``.\n\nArgs:\n    x: Input tensor in bf16/fp16/fp32. Last dimension must be divisible by\n        ``block_size`` and the tensor must be contiguous.\n    block_size: Number of elements per quantization block (default: 128).\n\nReturns:\n    A tuple ``(quantized, scales)`` where ``quantized`` has dtype\n    ``float8_e4m3fn`` with the same shape as ``x``, and ``scales`` has\n    shape ``(*x.shape[:-1], x.shape[-1] // block_size)`` in float32.",
+      "signature": {
+        "parameters": [
+          {
+            "name": "x",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "block_size",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "128",
+            "annotation": "int"
+          }
+        ],
+        "return_annotation": "tuple[torch.Tensor, torch.Tensor]"
+      }
+    },
+    {
+      "name": "matmul_2d",
+      "qualname": "matmul_2d",
+      "module": "_finegrained_fp8_cuda_5fe9dbb.matmul",
+      "kind": "function",
+      "doc": "Quantized matmul dispatcher (W8A8 FP8 or W4A8 FP4).\n\n``A`` is always raw bf16/fp16/fp32; quantization is fused into every path.\nWith ``activation_scale`` set, the kernel uses that per-tensor scalar\n(static quant); otherwise it computes its own scale from ``A`` (dynamic).\n\n``output_dtype`` defaults to ``A.dtype``.\n\nRoutes by weight dtype and ``block_size``:\n- MX weights — ``int8`` (packed E2M1) or ``float8_e4m3fn`` (E4M3) with UE8M0\n  group-32 ``Bs`` (shape ``[N, K//32]``) → ``mxfp_dynamic_matmul`` (``block_size``\n  ignored, ``activation_scale`` unsupported; scale granularity fixed at 32, autotuned).\n- ``block_size`` None or full ``[N, K]`` → ``w8a8_tensor_dynamic_fp8_matmul``.\n- otherwise → ``w8a8_block_dynamic_fp8_matmul`` (or its static variant when\n  ``activation_scale`` is given).",
+      "signature": {
+        "parameters": [
+          {
+            "name": "A",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "B",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "Bs",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "block_size",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "list[int] | None"
+          },
+          {
+            "name": "output_dtype",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "torch.dtype | None"
+          },
+          {
+            "name": "activation_scale",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "torch.Tensor | None"
+          }
+        ],
+        "return_annotation": "torch.Tensor"
+      }
+    },
+    {
+      "name": "matmul_batched",
+      "qualname": "matmul_batched",
+      "module": "_finegrained_fp8_cuda_5fe9dbb.batched",
+      "kind": "function",
+      "doc": "Batched quantized matmul dispatcher (W8A8 FP8 or W4A8 FP4). Routes one\nrouted row per program to ``B[expert_ids[s]]``.\n\n``output_dtype`` defaults to ``A.dtype``.\n\nRoutes by weight dtype and ``block_size``:\n- MX weights — ``int8`` (packed E2M1) or ``float8_e4m3fn`` (E4M3) with UE8M0\n  group-32 ``Bs`` (shape ``[num_experts, N, K//32]``) → ``mxfp_dynamic_matmul_batched``\n  (``block_size`` ignored; tile + dot path autotuned).\n- ``block_size`` None or full ``[N, K]`` → ``w8a8_tensor_dynamic_fp8_matmul_batched``.\n- otherwise → ``w8a8_block_dynamic_fp8_matmul_batched``.",
+      "signature": {
+        "parameters": [
+          {
+            "name": "A",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "B",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "Bs",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "expert_ids",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "block_size",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "list[int] | None"
+          },
+          {
+            "name": "output_dtype",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "torch.dtype | None"
+          }
+        ],
+        "return_annotation": "torch.Tensor"
+      }
+    },
+    {
+      "name": "matmul_grouped",
+      "qualname": "matmul_grouped",
+      "module": "_finegrained_fp8_cuda_5fe9dbb.grouped",
+      "kind": "function",
+      "doc": "Grouped quantized matmul dispatcher (W8A8 FP8 or W4A8 FP4). Tokens must\nbe sorted by expert; M-tiles are mapped to experts via ``offsets``.\n\n``output_dtype`` defaults to ``A.dtype``.\n\nRoutes by weight dtype and ``block_size``:\n- MX weights — ``int8`` (packed E2M1) or ``float8_e4m3fn`` (E4M3) with UE8M0\n  group-32 ``Bs`` (shape ``[num_experts, N, K//32]``) → ``mxfp_dynamic_matmul_grouped``\n  (``block_size`` ignored; tile + dot path autotuned).\n- ``block_size`` None or full ``[N, K]`` → ``w8a8_tensor_dynamic_fp8_matmul_grouped``.\n- otherwise → ``w8a8_block_dynamic_fp8_matmul_grouped``.",
+      "signature": {
+        "parameters": [
+          {
+            "name": "A",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "B",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "Bs",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "offsets",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "tokens_per_expert",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "block_size",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "list[int] | None"
+          },
+          {
+            "name": "output_dtype",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "torch.dtype | None"
+          }
+        ],
+        "return_annotation": "torch.Tensor"
+      }
+    },
+    {
+      "name": "moe_fused_batched",
+      "qualname": "moe_fused_batched",
+      "module": "_finegrained_fp8_cuda_5fe9dbb.fused_batched",
+      "kind": "function",
+      "doc": "Fused batched-MoE dispatcher — routes to the recipe matching the weight dtype /\nscale layout, mirroring ``matmul_batched``. Implemented: block-dynamic FP8 and MXFP8\n(tensor-dynamic) and MXFP4. ``simulate_unfused`` (testing) rounds each step through the\nactivation dtype so the output matches the unfused reference to reduce order.",
+      "signature": {
+        "parameters": [
+          {
+            "name": "hidden_states",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "top_k_index",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "top_k_weights",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "gate_up_proj",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "down_proj",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "gate_up_proj_scale_inv",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "down_proj_scale_inv",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "block_size",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "list[int] | None"
+          },
+          {
+            "name": "act_fn",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "'silu'",
+            "annotation": "str"
+          },
+          {
+            "name": "swiglu_alpha",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "float | None"
+          },
+          {
+            "name": "swiglu_limit",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "float | None"
+          },
+          {
+            "name": "simulate_unfused",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "False",
+            "annotation": "bool"
+          }
+        ],
+        "return_annotation": "torch.Tensor"
+      }
+    },
+    {
+      "name": "moe_fused_grouped",
+      "qualname": "moe_fused_grouped",
+      "module": "_finegrained_fp8_cuda_5fe9dbb.fused_grouped",
+      "kind": "function",
+      "doc": "Fused grouped-MoE dispatcher — routes to the recipe matching the weight dtype /\nscale layout, mirroring ``moe_fused_batched``. Implemented: block-dynamic FP8 and MXFP8 /\nMXFP4 (UE8M0 group-32). ``simulate_unfused`` (testing) rounds each step through the\nactivation dtype so the output matches the unfused reference to reduce order.",
+      "signature": {
+        "parameters": [
+          {
+            "name": "hidden_states",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "top_k_index",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "top_k_weights",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "gate_up_proj",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "down_proj",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "gate_up_proj_scale_inv",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "down_proj_scale_inv",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "torch.Tensor"
+          },
+          {
+            "name": "block_size",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": null,
+            "annotation": "list[int] | None"
+          },
+          {
+            "name": "act_fn",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "'silu'",
+            "annotation": "str"
+          },
+          {
+            "name": "swiglu_alpha",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "float | None"
+          },
+          {
+            "name": "swiglu_limit",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "None",
+            "annotation": "float | None"
+          },
+          {
+            "name": "simulate_unfused",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "default": "False",
+            "annotation": "bool"
+          }
+        ],
+        "return_annotation": "torch.Tensor"
+      }
+    }
+  ],
+  "layers": []
+}

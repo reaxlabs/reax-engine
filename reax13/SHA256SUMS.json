@@ -1,0 +1,24 @@
+{
+  "algorithm": "sha256",
+  "note": "E* = shipped engine + ar-a exact fp8 kernel + w-qdrift Q pin (C) + request_timeout 1800 + declared input cap 32000 + dead-backend handling + fast_fp8_gemm guards/notice (w-bundle, 2026-11-03); round 3: code licence MIT (LICENSE), fast_fp8_gemm.py Apache-2.0 (w-bundle, 2026-11-03); round 4: reply-protocol check (any non-reply line closes the backend), test fixes, contract wording (w-bundle, 2026-11-03); round 5: exact-shape reply check (w-bundle, 2026-11-03)",
+  "files": {
+    "Dockerfile": "2c19aa1728da1b1358ccd525c9ee47b70a6a1d646ef9b0d28d3b56a197607761",
+    "Dockerfile.conv": "487491b4907eb6c382c1e276a7cb488754382214f64e4ba134ff86876587b98c",
+    "LICENSE": "6c6717154ca53121437292b4aaa544c0b54bc2b37bf4dffd9c0c9f320c071499",
+    "README.md": "cd5f4d6454ddbd8b97486f6b96e7241dfe06353cc98f95fc242e19bfacb511b3",
+    "SEALED-CONTRACT.md": "53488fe635373a71d15a050e3658d08dcdb5c79f43681b525c8382b9750e72c7",
+    "THIRD_PARTY_NOTICES.md": "93a6b264b7ccd1cd94d578b3d503e48d3e3d1cd707056881d87e0d85fb2860fe",
+    "autotune_guard.py": "88aeb73ab95b7571657337f24d8ff9474ef2376cd9e5cc069a2aede2cd66c5fe",
+    "backend.py": "5b27379cab7af5e12f7f5c3b6cd74096fd07211935aa8ad1a070c92689d6d0da",
+    "benchmark.py": "06b05053faa5c6a14d14cc1b3b06dccb5fc218fe735502e4a8ce901a16d0c8fc",
+    "fast_fp8_gemm.py": "e7a36d9d9a3c12546a9758eda40e90d2fcb1d0603b610080c7e361f85ec0d8c3",
+    "probabilities.py": "ba5106fbae0662011cc63ffa989da74eb36f5776f585bce20cba771c0aa29e1d",
+    "reax13.json": "09eb15a244298378050ef5f09aa94e3b76c1cf54a5245b40102ae0da4f581706",
+    "reax13_engine.py": "9e1c3bc6386f23f8a63759b84b62c6ebbfcbc56c9c216c63a799980385e1c6ed",
+    "serve.py": "b51bcd5af1ebcc75982b459e30e9ca1142e147306250c98ec862e0331088a628",
+    "test_bundle.py": "e3544f9fe7233e336ec0aed896bbea65a9b929a3041b907d07d02d0d2116c469",
+    "test_fast_fp8_gemm.py": "7faf334f074dbe5ad3c6d481c10daba2c83a4f2594561d83723d03996385be99",
+    "test_probabilities.py": "b338c4855272e25f3695c87dc30f4f8ee10ef32e40a3d1e4b23706506f19c345",
+    "test_serve.py": "d8164eacacaff6655a24e98f69c2f6fcafbc143bde451ac1f12547afea65b6e5"
+  }
+}

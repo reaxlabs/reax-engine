@@ -1,0 +1,12 @@
+{
+  "mode": "reax13",
+  "model_root": "/model",
+  "part_g": "part-g",
+  "part_q": "part-q",
+  "quantization": "fp8",
+  "optimization": "fastconv_longcache",
+  "u_batch_size": 8,
+  "startup_timeout": 1800,
+  "request_timeout": 1800,
+  "max_input_proxy_tokens": 32000
+}

@@ -1,0 +1,23 @@
+{
+  "finegrained-fp8/symbols.json": "664b5cff64e5597b9faff54fffb6d11a141c019b60b216799484ba2f00a551c4",
+  "finegrained-fp8/LICENSE": "561adc7696b191df9d4030782eba8f9968e88df4975c944212fc2dee8f27421c",
+  "finegrained-fp8/_private_for_testing.py": "5ccf7e8e713659beb9d8603e5399f42cce95952b5a49c58a1f454855085fdfee",
+  "finegrained-fp8/__init__.py": "01f34c9fac58ce8646492c0b68ca1748c989bcf128fe9f0d806c4b407e426b39",
+  "finegrained-fp8/batched.py": "d59bbd36d2b9798e09a3a86f9f3002438f6e98eb005646170fdd39a75fc175ea",
+  "finegrained-fp8/metadata.json.sigstore": "805119689a26b806e42b841fc1ab1136bbc52b4e7c751cc42ef28cd535b44126",
+  "finegrained-fp8/grouped.py": "382b03b38f0d0531d4fc6d2ce5e7441576ff9b9a38f3e3200f616ac060c69206",
+  "finegrained-fp8/_ops.py": "e5895a4c4adaacb383c46d537dd05171664f1d85a2f291b2060e0d945d338212",
+  "finegrained-fp8/fused_grouped.py": "55893766cd9c34a4fe9b56254f3c8cdb0de2cdb8128bb5766724c1cefa6f31d0",
+  "finegrained-fp8/utils.py": "2cb87f98ab385e41c95fdf1e1bec777a25c8e0bb003a357a72c07a53c2b7b5d0",
+  "finegrained-fp8/fused_batched.py": "e712ca6aff1d589a9162429d546c75e2e2fd168331a9e1c21153320407672034",
+  "finegrained-fp8/matmul.py": "0f668b5d9e0e7db0675ea4518052b9320830f64f2468f2ecbcae7d0876336807",
+  "finegrained-fp8/metadata.json": "364d09ce040d25b30daf5dab953ffd3f2da4ea0ca29f36532e72b24531413607",
+  "finegrained-fp8/bayesian_autotuner.py": "8c1518bf27e9107b13060165a6dd93b397a6cfe092332be37354f151f64a56b8",
+  "d3/LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+  "d3/NOTICE": "d7522881de6b8417b997953c9b82d54e1be61952571a163c2fcf77f1e199406d",
+  "knowline/LICENSE": "ca64c7fa25098797fb01d2ade37443dd0f7e0f8527d3e7efdbeb4f75a3a7bf67",
+  "knowline/knowline_layout.py": "2e839fa24f1ad9c980898b2a9aa62e2154ba3f57618bd5f2fedb5756f61f062f",
+  "knowline/knowline_server.py": "13ca50c4001fac0aa3899a35ff01e60f311132c571b17a8c3dc7aa6001ad2f3f",
+  "knowline/temperatures.json": "463a46c5ea253649bd5f43809655637d2d41939e503c81ddd01b28355d736f62",
+  "knowline/WEIGHT-LICENSE-Apache-2.0": "50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32"
+}

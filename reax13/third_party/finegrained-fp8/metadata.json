@@ -1,0 +1,39 @@
+{
+  "name": "finegrained-fp8",
+  "id": "_finegrained_fp8_cuda_5fe9dbb",
+  "version": 4,
+  "kernels-minver": "0.14.0",
+  "license": "Apache-2.0",
+  "python-depends": [],
+  "kernel-depends": [],
+  "backend": {
+    "type": "cuda"
+  },
+  "digest": {
+    "algorithm": "sha256",
+    "files": {
+      "__init__.py": "AfNMn6xYzoZGSSwLaMoXSMmJvPEo/p8NgGxLQH5Cazk=",
+      "_ops.py": "5YlaTErarLODxG1TfdBRcWZPHYWi8pGyBg4NlF0zghI=",
+      "_private_for_testing.py": "XM9+jnE2Wb652GA+U5n0LM6VlStaScWKH0VIVQhf3+4=",
+      "batched.py": "1Zu9NtK5eY4Jo6hvnzACQ49umOsAVkYXD905p1/Bdeo=",
+      "bayesian_autotuner.py": "jBUYvyfpEHsTBgFlpt2Ts5emz+CSMyvjc1TxUfZKVrg=",
+      "fused_batched.py": "5xLKav8dWJqRYkKdVGx14uL9FoMxqeHCEVMyBAdnIDQ=",
+      "fused_grouped.py": "VYk3Zs2cNKT+m1YlTzyM2w3izbgSi7V2ZyTBzvpvMdA=",
+      "grouped.py": "OCsDs48NBTHU/G0s5edEFXb/m5o48+MgD2FqwGDGkgY=",
+      "matmul.py": "D2aLXZ4OfbBnXqRRgFK5Mggw9k8kaPLsvK59CHYzaAc=",
+      "symbols.json": "Zktc/2TlWXufr/VP/7bRGhQcAZtgshZ5lIS6LwClUcQ=",
+      "utils.py": "LLh/mKs4XkHJX98eG+x3eiXI4LsAOjV6csB6U8K3tdA="
+    }
+  },
+  "provenance": {
+    "kernel-builder": {
+      "version": "0.18.0-dev0",
+      "commit": "21bdf69d97a289b9c581a0c60f63deed131647d5",
+      "dirty": false
+    },
+    "kernel": {
+      "commit": "5fe9dbb3d45f6f2652958c1f70e5381891fa7aa0",
+      "dirty": false
+    }
+  }
+}
