@@ -1,0 +1,7 @@
+{"version": 1,
+ "source": "kai lever N1, tools/n1bench.py run b4 (2026-10-28, RTX PRO 6000 Blackwell Server Edition, mammoth-1 layer 42 gate|up): fused gate|up + quant pass per configuration; tile 8 (256x128x128 cooperative) was fastest at M 1024, 1503 and 2048 (M just below a multiple of 256, as in lever B's table), the default 3:0:1 (128x128x128 ping-pong) at M 611, 1161, 1280, 1664, 1771 and within 0.3 % of the best at 2944. Exactness does not depend on the configuration (every one checked bit-equal).",
+ "entries": [
+  {"m": [961, 1024], "tile": 8, "raster": 0, "swz": 1},
+  {"m": [1409, 1536], "tile": 8, "raster": 0, "swz": 1},
+  {"m": [1921, 2048], "tile": 8, "raster": 0, "swz": 1}
+ ]}

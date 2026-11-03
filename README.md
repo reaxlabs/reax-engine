@@ -19,6 +19,41 @@ per-option probabilities are averaged 50/50. It ships an HTTP server (`/v1/syste
 [Decision Index kit](https://github.com/apolinario/decision-index). Build, run and test steps: [reax13/README.md](reax13/README.md);
 the model card gives the same steps pinned to a commit of this repository.
 
+## Which engine for what
+Images are pinned by digest; a digest named here or in the subnet's miner kit is never overwritten or deleted.
+
+| use | engine | image or path | source |
+|---|---|---|---|
+| mammoth-1 (s1-pro), fastest: engine competition v2 dm-all champion UID 240 | UID 240 engine | `ghcr.io/reaxlabs/reax-engine-dm240@sha256:7941f51a96086cc6d40b527d8062c2b424335875462114aa36eee7cb9d8244d5` (same digest as `ghcr.io/masterdev777/dm240`) | [`champions/uid240/`](champions/uid240/) (miner source, Apache-2.0 + REAX Engine License 1.1, [provenance](champions/uid240/PROVENANCE.md)) |
+| mammoth-1 (s1-pro), reference | ref-mammoth | `ghcr.io/reaxlabs/reax-engine-ref-mammoth@sha256:3080a593060542bccbdaf7cf0c66593fc182d9753b3facd50206df86d93b8588` | `docker/ref-qwen35/Dockerfile`, `REAX_MODEL=mammoth-1` |
+| Plumb-4B (s1-fast), fastest: engine competition champion UID 62 | s1-fast champion | `ghcr.io/reaxlabs/reax-engine-champion-s1-fast@sha256:8467e642812347a6c34f5c3f26eb7dd42678e4a4a532aad09f3d22d9fa0138a7` (same digest as `ghcr.io/masterdev777/s1r`) | `mirrors/champions.txt` |
+| Plumb-4B (s1-fast), reference | s1-fast | `ghcr.io/reaxlabs/reax-engine-s1-fast@sha256:9bd41632e33bd90377f7e29bdb9410b18cfe1fb557200160b9ebe9222abcecea`; 1.2.0rc1 runtime `ghcr.io/reaxlabs/reax-s1-fast-runtime@sha256:d857a90eaf168d1db3ca982c5111b10fb61a65cc5f7113ea9e391fe6fca17b71` | `docker/s1-fast/Dockerfile` |
+| d3-turbo, REAX 1, Perplexity Decider (27B Qwen line), reference | ref-d3turbo | `ghcr.io/reaxlabs/reax-engine-ref-d3turbo@sha256:503cd9e00114dada655691de44b5a4ff1a08a985bcaf0021121967a73e436eac` | `docker/ref-qwen35/Dockerfile` |
+| Blink v0.3 text, reference | ref-blink | `ghcr.io/reaxlabs/reax-engine-ref-blink@sha256:ab02e141ffb5672dc68e137736be0a6fa15445c7cc824a51f6ad2a6664c0e10a` | `docker/ref-blink/Dockerfile` |
+| Blink vision (one image), reference | ref-blink (eager) | `ghcr.io/reaxlabs/reax-engine-ref-blink@sha256:97d06a91453979d6756176aba4a1cb1d78b38390643c37ed1b83f79a4ff9f606` | `docker/ref-blink/Dockerfile` |
+| Quyet-1.0-Large, reference | ref-quyet | `ghcr.io/reaxlabs/reax-engine-ref-quyet@sha256:da746016917b4f8a7adb3aeace03e8985278d277b8308ea380ec8f8318b8512f` | `docker/ref-quyet/Dockerfile` |
+| Jeffan-31b-1710, reference | ref-jeffan | `ghcr.io/reaxlabs/reax-engine-ref-jeffan@sha256:fdebc6e594788aa48bc228083e71c5084d86ca71ce856f6dd1f59ce106db0f13` | `docker/ref-jeffan/Dockerfile` |
+| REAX 1.3 (two-part ensemble) | reax13 | built from [`reax13/`](reax13/) | [reax13/README.md](reax13/README.md) |
+
+**mammoth-1 on the UID 240 engine, tested settings** (RTX PRO 6000 96 GB; about 47 decisions/s at 2 requests in flight). Use the
+`KAI_MODEL_ENV_MAMMOTH` value exactly as given: without it the image switches to FP4 for larger batches and fails the
+self-check already at 2 requests in flight. The first start takes about 6 minutes (kernel compilation).
+```bash
+docker run -d --name s1-pro-mammoth --gpus device=0 --network host --init --read-only \
+  --tmpfs /tmp:rw,exec,nosuid,nodev,size=16g --cap-drop ALL --security-opt no-new-privileges --pids-limit 4096 \
+  --shm-size 2g -v <weights dir>:/model:ro -v <token file>:/run/s1m-token:ro \
+  -e S1M_INTERNAL_TOKEN_FILE=/run/s1m-token -e RUNTIME_UDS= -e RUNTIME_HOST=127.0.0.1 -e RUNTIME_PORT=8102 \
+  -e REAX_MODEL=mammoth-1 \
+  -e KAI_MODEL_ENV_MAMMOTH=MAM_F8=1,MAM_F8_GU=1,MAM_FLA_PIN=1,MAM_SCONV=1,MAM_H2D1=1,MAM_ADAPT=1,KAI_MAX_WAIT_MS=16,MAM_ENCTHREAD=1,MAM_FASTENC=1,MAM_F8TAB=1,KAI_ACTQ=1,KAI_GDNPS=1,KAI_ENC1=1,KAI_HCI=1,KAI_RDASYNC=1,KAI_EARLY=1,KAI_N1=1,KAI_PDL=1,KAI_B11=1,KAI_GC_FREEZE=1,KAI_GDNFUSE=1,KAI_NOXSTORE=1 \
+  ghcr.io/reaxlabs/reax-engine-dm240@sha256:7941f51a96086cc6d40b527d8062c2b424335875462114aa36eee7cb9d8244d5
+reax-selfcheck --model s1-pro --url http://127.0.0.1:8102 --concurrency 2   # PASS, about 47/s
+```
+Cap the engine at 2 requests in flight: `REAX_RELAY_MAX_INFLIGHT=2` in the relay container (`reax-runtime-relay`, one relay per
+engine, all requests through it), `"max_inflight": 2` for this worker in the gateway's workers file, or `REAX_RUNTIME_INFLIGHT=2`
+when the miner runs on the same machine. `reax-selfcheck` and `reax-runtime-relay` come with
+[reax-subnet](https://github.com/reaxlabs/reax-subnet). A second instance on the same GPU adds no throughput; scale with more GPUs,
+each with its own relay.
+
 ## Models (one registry, one server, one evaluation harness)
 `python -m engine.registry` prints the table; details and every measurement: [docs/MODELS.md](docs/MODELS.md).
 
@@ -96,3 +131,6 @@ The REAX Engine is licensed under the [MIT License](LICENSE).
 - **Third-party code** (prompt contracts adapted from model authors, FP8 kernels from Hugging Face; Apache-2.0 or MIT) keeps
   its own licence; see [NOTICE](NOTICE) and the file headers. Model weights are not part of this repository and keep their
   own licences.
+- **Miner engines** under `champions/` (first: UID 240) are the miners' published source, unchanged, under the licences in
+  their directories (UID 240: Apache-2.0, and the REAX Engine License 1.1 for its parts built on the REAX Engine). The MIT
+  License of this repository does not apply to them.

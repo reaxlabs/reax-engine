@@ -1,0 +1,3 @@
+{"what": "E71 T1X = the T1 table (moe_gemm.json) + the w2 GEMM on all 188 SMs for 1,409-2,048 tokens, where the dense down GEMM is fully dispatched before w2 starts; [max tokens, variant, raster, sms]; with BLINK_MOE_GEMM_SMS=0; scheduling only, exact by construction",
+ "gemms": {"w13": [[1408, 13, 0, 160], [1536, 13, 0, 122], [1664, 13, 0, 116], [1792, 13, 0, 111], [1920, 13, 0, 105], [2048, 13, 0, 100], [1000000, 13, 0, 160]],
+           "w2": [[1408, 11, 0, 160], [2048, 11, 0, 188], [1000000, 11, 0, 160]]}}

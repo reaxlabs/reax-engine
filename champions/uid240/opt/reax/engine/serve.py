@@ -1,0 +1,747 @@
+#!/usr/bin/env python3
+"""REAX decision server: one asyncio/uvicorn process, one continuous batcher over a `Backend` (backends/base.py).
+
+Routes
+  POST /internal/v1/decide   the s1 runtime sidecar contract: header X-S1M-Internal-Token, one question per call,
+                             {"model","answers":{qid:{type,probabilities,confidence,choice|noul|score}},"usage"}
+  POST /v1/systemone         the same with any number of questions per call
+  POST /v1/classify          classifier_heads models (s1-llm-auto-router): {"model","request","context"} ->
+                             {"model","heads":{name:{"label","probabilities"}},"usage"}; the two routes above then
+                             answer the model's fixed questions in the production shape (see backends/onnx_heads.py)
+  GET  /health               200 only after warm-up (503 before)
+Listens on $RUNTIME_UDS (unix socket, mode 0666) if set, else RUNTIME_HOST:RUNTIME_PORT (127.0.0.1:8101).
+Token: S1M_INTERNAL_TOKEN or the file S1M_INTERNAL_TOKEN_FILE; RUNTIME_ALLOW_NO_AUTH=1 serves without one.
+
+Scheduling: request handlers tokenise on the event loop (a worker thread for very long inputs) and put `Encoded` items
+on a queue; ONE scheduler thread (the only one that touches the GPU) takes everything queued, packs it up to
+`backend.max_batch_tokens` tokens (waiting at most --max-wait-ms for more when the queue was empty at the first item;
+0 = never wait: a lone request runs immediately, a burst is packed because requests pile up while a step runs) and
+hands the probabilities back to the event loop in one callback per step.
+KAI_PROFILE=1 (dev profiling, engine/kprofile.py, tools/profile.sh) wraps backend.run for triggered profile windows.
+Dev switches (unset = the reference behaviour above): KAI_SCHED_CLOSE=inflight|expect ends the wait as soon as every
+request that entered the server is queued ('expect' also waits for the previous step's count), the window stays the cap
+(lever B5); KAI_SWITCH_INTERVAL=<s> and KAI_GC_FREEZE=1 are host knobs (lever B15, see host_knobs).
+rgh's f8m front-end levers (team image u4, ported with his switch names, default off here): MAM_ADAPT=1 closes a step once
+it holds the in-flight peak of the last MAM_ADAPT_S (2) seconds, the window staying the cap; MAM_ENCTHREAD=1 (mammoth,
+and reax1 as in rgh's u4r) encodes in MAM_ENCTHREADS (3) FIFO threads that queue each item for the GPU directly.
+KAI_MAX_WAIT_MS overrides the REAX_MAX_WAIT_MS window (rgh's image runs 16 ms) without changing the reference ENV. B5 close
+modes exclude MAM_ADAPT; they combine with MAM_ENCTHREAD (check_front_switches, Scheduler.count_lock).
+
+REAX_PROFILE=reference (set in the reference images) starts a model with its production recipe (registry `production_opts`:
+step budget, token cap, d3-turbo state-once, warm-up); `--opt` still overrides single options.
+Dev variant images only: KAI_ENGINE_OPTS='key=value;key=value' (each value parsed like --opt) is applied on top. Precedence,
+last wins: production_opts (REAX_PROFILE=reference) < KAI_ENGINE_OPTS < --opt. Unset or empty = no change at all. The final
+options are logged once to stderr at start ("engine opts: {json}"). A value cannot contain ';'.
+
+Models: every id of engine/registry.py (`python -m engine.registry`); plumb-4b has its own fast path, the others are built
+by their registry factory with `--opt key=value` (JSON values) passed through as backend options.
+
+    python engine/serve.py --model plumb-4b                    # weights at $PLUMB_MODEL_DIR (default /model)
+    python -m engine.serve --model quyet-1.0-large --model-dir /model --host 0.0.0.0 --port 8741 --opt preset=fp8-kv
+    python engine/serve.py --model s1-llm-auto-router --model-dir weights/router   # classifier_heads, CPU, onnxruntime
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import hashlib
+import hmac
+import json
+import os
+import queue
+import re
+import sys
+import threading
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(HERE), str(HERE.parent)]
+
+import kai_model_env  # noqa: E402  (kai: per-model switch sets, before any module reads its switches)
+_KAI_MODEL_ENV = kai_model_env.apply(os.environ)
+if _KAI_MODEL_ENV:
+    print(f"kai model env ({os.environ.get('REAX_MODEL')}): {_KAI_MODEL_ENV}", file=sys.stderr, flush=True)
+import startup  # noqa: E402  (first: its clock starts here; `startup: <phase> <s>` lines on stderr)
+from backends.base import sidecar_answer  # noqa: E402
+from backends.common import s1_answer  # noqa: E402
+
+LONG_TEXT = 20000  # request bodies longer than this are tokenised in a worker thread, not on the event loop
+
+
+# ------------------------------------------------------------------------------------------------ scheduler
+def profile_hook(backend):
+    """KAI_PROFILE=1 (dev profiling, tools/profile.sh): engine/kprofile.py wraps backend.run and profiles a window of
+    steps when its trigger file appears. Unset or 0: returns None before importing anything; nothing changes."""
+    if os.environ.get("KAI_PROFILE", "").strip() in ("", "0"):
+        return None
+    try:
+        from engine import kprofile
+    except ImportError:
+        import kprofile
+    kprofile.enabled()  # refuses values other than 0 / 1
+    return kprofile.install(backend)
+
+
+_WAKE = object()  # queued by a ticket that leaves without an item, so a waiting step close re-checks at once
+CLOSE_MODES = ("", "inflight", "expect")
+
+
+def sched_close_mode() -> str:
+    """KAI_SCHED_CLOSE (lever B5, dev variant images): '' (unset, the reference: every step waits the whole
+    --max-wait-ms window after its first item), 'inflight' (close as soon as every request that entered the server is
+    queued) or 'expect' (also wait until at least as many items as the previous step answered, plus those already
+    waiting, are queued: closed-loop clients come back one by one). The window stays the cap in both."""
+    mode = os.environ.get("KAI_SCHED_CLOSE", "").strip()
+    if mode not in CLOSE_MODES:
+        raise SystemExit(f"KAI_SCHED_CLOSE must be one of {CLOSE_MODES[1:]} or unset, not {mode!r}")
+    return mode
+
+
+class _Ticket:
+    """One request's announced-but-not-queued items. Starts at 1 when the request enters. Written on the event loop and,
+    with MAM_ENCTHREAD, by the encode threads (Scheduler.submit), always under the scheduler's count lock."""
+    __slots__ = ("sched", "left")
+
+    def __init__(self, sched):
+        self.sched, self.left = sched, 1
+        with sched.count_lock:
+            sched.announced += 1
+
+    def grow(self, n: int):  # the request carries n items (questions) in all
+        with self.sched.count_lock:
+            if n > self.left:
+                self.sched.announced += n - self.left
+                self.left = n
+
+    def release(self):  # the request ends: whatever it did not queue is no longer on the way
+        with self.sched.count_lock:
+            left, self.left = self.left, 0
+            self.sched.announced -= left
+        if left:
+            self.sched.q.put(_WAKE)
+
+
+def adapt_from_env() -> tuple[bool, float]:
+    """rgh f8m MAM_ADAPT (rgh: default on, here off) and MAM_ADAPT_S (seconds of in-flight history, default 2.0)"""
+    return os.environ.get("MAM_ADAPT", "0") == "1", float(os.environ.get("MAM_ADAPT_S", "2.0"))
+
+
+def max_wait_default() -> float:
+    """--max-wait-ms default: KAI_MAX_WAIT_MS (dev variant) if set, else the reference's REAX_MAX_WAIT_MS, else 0"""
+    return float(os.environ.get("KAI_MAX_WAIT_MS") or os.environ.get("REAX_MAX_WAIT_MS", "0"))
+
+
+def check_front_switches(close: str, adapt: bool, encthread: bool) -> None:
+    """B5 close modes count announced items with tickets; rgh's adapt window does its own accounting: refuse both
+    together. The encode threads combine with B5 (kai, with the u4r port): each thread submits its item with the
+    request's ticket, so the count drops right after the put, as on the event loop (count lock: Scheduler.count_lock)."""
+    if close and adapt:
+        raise SystemExit("KAI_SCHED_CLOSE cannot be combined with MAM_ADAPT (pick one step-close lever)")
+
+
+class Scheduler:
+    def __init__(self, backend, max_wait_ms: float = 0.0, max_items: int = 256, close: str = "", clock=time.perf_counter,
+                 adapt: bool = False, adapt_s: float = 2.0):
+        if close not in CLOSE_MODES:
+            raise ValueError(f"close must be one of {CLOSE_MODES}")
+        self.backend = backend
+        self.q: queue.SimpleQueue = queue.SimpleQueue()
+        self.max_wait = max_wait_ms / 1000.0
+        self.max_items = max_items
+        self.close = close
+        self.announced = 0  # requests' items that entered but are not queued yet (B5 tickets; written under count_lock)
+        self.count_lock = threading.Lock()  # B5 tickets are written on the event loop and by MAM_ENCTHREAD's encode threads
+        self.expect = 1  # 'expect': items the next step should hold (the previous step's answers come back)
+        self._clock = clock
+        # rgh f8m MAM_ADAPT: in-flight decisions (event-loop thread) and their (time, count) samples, newest last
+        self.adapt, self.adapt_s = bool(adapt), float(adapt_s)
+        self.inflight = 0
+        import collections
+        self._peak = collections.deque([(0.0, 0)], maxlen=4096)
+        self.steps = self.decisions = self.tokens = 0
+        self._on_ready = None
+        self.thread = threading.Thread(target=self._loop, name="scheduler", daemon=True)
+
+    def start(self, on_ready=None):
+        self._on_ready = on_ready
+        profile_hook(self.backend)  # KAI_PROFILE (dev profiling); unset = nothing
+        self.thread.start()
+
+    def submit(self, enc, loop, fut, ticket=None):
+        self.q.put((enc, loop, fut))
+        if ticket is not None:  # after the put: a zero count always means the item is already visible on the queue
+            self.count_off(ticket)
+
+    def count_off(self, ticket):
+        """B5: one of the ticket's items is queued (or failed to encode: never queued). An item of a request that has
+        already ended (MAM_ENCTHREAD: a thread still held it at release) was counted off by release: never twice."""
+        with self.count_lock:
+            if ticket.left > 0:
+                ticket.left -= 1
+                self.announced -= 1
+
+    def in_flight(self) -> int:
+        return self.announced
+
+    def track(self, delta):
+        """event-loop thread: in-flight decisions changed by delta (rgh f8m: deque, expired samples dropped from the left)"""
+        self.inflight += delta
+        now = self._clock()
+        pk = self._peak
+        while pk and now - pk[0][0] >= self.adapt_s:
+            pk.popleft()
+        pk.append((now, self.inflight))
+
+    def peak(self):
+        now = self._clock()
+        return max((n for t, n in list(self._peak) if now - t < self.adapt_s), default=0)
+
+    def _collect(self, first, limit):
+        """One step's items after `first`: (batch, tokens, carry)."""
+        if self.close and self.max_wait:
+            return self._collect_close(first, limit)
+        q, clock = self.q, self._clock
+        carry = None
+        batch, n = [first], first[0].n_tokens
+        deadline = clock() + self.max_wait if self.max_wait else 0.0
+        full = self.peak() if (self.adapt and deadline) else 0  # rgh f8m MAM_ADAPT: close at the in-flight peak
+        while len(batch) < self.max_items:
+            if full and len(batch) >= full:
+                break
+            try:
+                if deadline:
+                    item = q.get(timeout=max(0.0, deadline - clock()))
+                else:
+                    item = q.get_nowait()
+            except queue.Empty:
+                break
+            if n + item[0].n_tokens > limit:
+                carry = item
+                break
+            batch.append(item)
+            n += item[0].n_tokens
+        return batch, n, carry
+
+    def _collect_close(self, first, limit):
+        """Lever B5: take what is queued; stop waiting once nothing announced is still on its way (and, for 'expect',
+        the step holds the expected count); never wait past the window."""
+        q, clock = self.q, self._clock
+        carry = None
+        batch, n = [first], first[0].n_tokens
+        deadline = clock() + self.max_wait
+        while len(batch) < self.max_items:
+            try:
+                item = q.get_nowait()
+            except queue.Empty:
+                if (self.in_flight() <= 0 and (self.close == "inflight" or len(batch) >= self.expect)
+                        and q.empty()):  # count first, then the queue: a zero count means its item was put already
+                    break
+                left = deadline - clock()
+                if left <= 0:
+                    break
+                try:
+                    item = q.get(timeout=left)
+                except queue.Empty:
+                    break
+            if item is _WAKE:
+                continue
+            if n + item[0].n_tokens > limit:
+                carry = item
+                break
+            batch.append(item)
+            n += item[0].n_tokens
+        return batch, n, carry
+
+    def _after_step(self, batch, carry):
+        if self.close == "expect":  # answered now + already waiting = what the next step should hold in a closed loop
+            self.expect = min(self.max_items, len(batch) + self.q.qsize() + max(0, self.in_flight()) + (carry is not None))
+
+    def _loop(self):
+        be, q = self.backend, self.q
+        if self._on_ready:  # warm-up on the thread that serves afterwards (CUDA graphs, compile caches are per thread)
+            self._on_ready()
+        limit = be.max_batch_tokens
+        carry = None
+        while True:
+            first = carry or q.get()
+            carry = None
+            if first is _WAKE:
+                continue
+            if limit == 0:
+                batch, n = [first], first[0].n_tokens  # one item per run()
+            else:
+                batch, n, carry = self._collect(first, limit)
+            try:
+                res = be.run([b[0] for b in batch])
+                err = None
+            except Exception as e:  # noqa: BLE001
+                res, err = None, e
+            self.steps += 1
+            self.decisions += len(batch)
+            self.tokens += n
+            self._after_step(batch, carry)
+            by_loop: dict = {}
+            for i, b in enumerate(batch):
+                by_loop.setdefault(b[1], []).append((b[2], None if err else res[i]))
+            for loop, items in by_loop.items():
+                loop.call_soon_threadsafe(_deliver, items, err)
+
+
+def _fail(fut, exc):
+    if not fut.done():
+        fut.set_exception(exc)
+
+
+def _deliver(items, err):
+    for fut, val in items:
+        if not fut.done():
+            if err is not None:
+                fut.set_exception(err)
+            else:
+                fut.set_result(val)
+
+
+# ------------------------------------------------------------------------------------------------ app
+def _token() -> str:
+    tok = os.environ.get("S1M_INTERNAL_TOKEN", "")
+    path = os.environ.get("S1M_INTERNAL_TOKEN_FILE", "")
+    if not tok and path and os.path.exists(path):
+        tok = open(path).read().strip()
+    if not tok and os.environ.get("RUNTIME_ALLOW_NO_AUTH") != "1":
+        sys.exit("serve: no token (S1M_INTERNAL_TOKEN or S1M_INTERNAL_TOKEN_FILE; RUNTIME_ALLOW_NO_AUTH=1 to disable)")
+    return tok
+
+
+class App:
+    def __init__(self, backend, sched: Scheduler, token: str, model_name: str):
+        self.be, self.sched, self.token, self.model = backend, sched, token.encode(), model_name
+        self.ready = False
+        self.loop_hdr = b"x-s1m-internal-token"
+        self._inline = getattr(backend, "encode_inline", False)  # False: encode in worker threads (HF tokenisers, llama.cpp)
+        self._encq = None
+        if getattr(backend, "family", None) in ("mammoth", "reax1") and os.environ.get("MAM_ENCTHREAD", "0") == "1":
+            # rgh f8m (rgh: default on, here off): FIFO encode threads for mammoth text decisions (rgh u4r: and REAX-1's),
+            # each encoded item goes straight to the GPU scheduler queue (rgh: asyncio's default executor gave a median
+            # arrival -> submit of 5.8 ms at c16; the Rust tokenizer releases the GIL). MAM_ENCTHREADS (default 3)
+            # threads; same encode, same ids.
+            self._encq = queue.SimpleQueue()
+            for i in range(max(1, int(os.environ.get("MAM_ENCTHREADS", "3")))):
+                threading.Thread(target=self._enc_loop, name=f"encode{i}", daemon=True).start()
+        own = getattr(backend, "answer", None)  # the model's own answer shape (used by /v1/systemone)
+        if backend.kind == "gguf-cpu" or getattr(backend, "family", None) == "mammoth":
+            # mammoth (qev contract): noul options are qev's ["yes", "no"]; the production engine (pplx-decider-engine
+            # 5117ec3 decide_qev) answers every path with qev_contract.product_answer -> false/true probabilities
+            s1 = own
+        elif backend.name == "plumb-4b":
+            s1 = lambda q, p: sidecar_answer(q, backend.options(q), p)  # noqa: E731
+        else:
+            s1 = lambda q, p: s1_answer(q["type"], backend.options(q), p)  # noqa: E731
+        self._shape = {"/internal/v1/decide": s1, "/v1/systemone": own or s1}
+        self.aliases = ()
+        self.classifier = getattr(backend, "model_type", "") == "classifier_heads"
+
+    def _enc_loop(self):
+        """rgh f8m encode thread: (state, question, loop, future, box, ticket) -> Encoded -> scheduler queue; errors go to
+        the future. With a B5 ticket (KAI_SCHED_CLOSE) the item is counted off right after the put (Scheduler.submit)."""
+        q, enc_fn, sched = self._encq, self.be.encode, self.sched
+        while True:
+            state, quest, loop, fut, box, ticket = q.get()
+            try:
+                enc = enc_fn(state, quest)
+            except Exception as exc:  # noqa: BLE001 - ValueError (bad question / too long) etc.: re-raised in the handler
+                loop.call_soon_threadsafe(_fail, fut, exc)
+                if ticket is not None:  # B5: never queued, so no longer on its way
+                    sched.count_off(ticket)
+                continue
+            box.append(enc)
+            sched.submit(enc, loop, fut, ticket)
+
+    # -------- one decision (all questions of a request are batched together)
+    async def decide(self, state, questions: dict, path: str, long_body: bool = False, images=None, ticket=None):
+        if not getattr(self.sched, "adapt", False):
+            return await self._decide(state, questions, path, long_body, images, ticket)
+        self.sched.track(len(questions))  # rgh f8m MAM_ADAPT
+        try:
+            return await self._decide(state, questions, path, long_body, images, ticket)
+        finally:
+            self.sched.track(-len(questions))
+
+    async def _decide(self, state, questions: dict, path: str, long_body: bool = False, images=None, ticket=None):
+        loop = asyncio.get_running_loop()
+        if self._encq is not None and not long_body and not images:  # rgh f8m MAM_ENCTHREAD
+            if ticket is not None:
+                ticket.grow(len(questions))
+            futs, boxes = {}, {}
+            for qid, q in questions.items():
+                futs[qid], boxes[qid] = loop.create_future(), []
+                self._encq.put((state, q, loop, futs[qid], boxes[qid], ticket))
+            probs = {qid: await f for qid, f in futs.items()}
+            shape = self._shape[path]
+            answers = {qid: shape(q, probs[qid]) for qid, q in questions.items()}
+            return answers, sum(b[0].n_tokens for b in boxes.values())
+        if ticket is not None:
+            ticket.grow(len(questions))
+        encode = (lambda st, q: self.be.encode_images(st, q, images)) if images else self.be.encode
+        if long_body or not self._inline:
+            encs = dict(zip(questions, await asyncio.gather(
+                *(loop.run_in_executor(None, encode, state, q) for q in questions.values()))))
+        else:
+            encs = {qid: encode(state, q) for qid, q in questions.items()}
+        futs = {}
+        for qid, enc in encs.items():
+            futs[qid] = loop.create_future()
+            self.sched.submit(enc, loop, futs[qid], ticket)
+        probs = {qid: await f for qid, f in futs.items()}
+        shape = self._shape[path]
+        answers = {qid: shape(q, probs[qid]) for qid, q in questions.items()}
+        return answers, sum(e.n_tokens for e in encs.values())
+
+    # -------- classifier_heads models: one encoder pass answers every head
+    async def _probs(self, state, long_body: bool = False):
+        loop = asyncio.get_running_loop()
+        enc = await loop.run_in_executor(None, self.be.encode, state) if long_body else self.be.encode(state)
+        fut = loop.create_future()
+        self.sched.submit(enc, loop, fut)
+        return await fut, enc.n_tokens
+
+    async def classify(self, body: dict, long_body: bool = False):
+        want = body.get("model")
+        if want is not None and want != self.be.name and want not in self.aliases:
+            raise ValueError(f"model must be {self.be.name}")
+        if "request" not in body:
+            raise ValueError("request is required")
+        probs, n = await self._probs({"request": body["request"], "context": body.get("context")}, long_body)
+        return {"model": self.be.name, "heads": self.be.heads_answer(probs),
+                "usage": {"input_tokens": n, "output_tokens": 0}}
+
+    async def decide_fixed(self, state, questions: dict, long_body: bool = False):
+        """Production-compatible shape: the fixed questions of a classifier_heads model, answers from one pass."""
+        self.be.check_questions(questions)
+        probs, n = await self._probs(state, long_body)
+        return self.be.sidecar_answers(questions, probs), n
+
+    def _kai_report(self):
+        """kai fix M3: the backend's usage counts at shutdown, once (backends without kai_report: nothing)"""
+        rep = getattr(self.be, "kai_report", None)
+        try:
+            line = rep() if rep is not None else None
+        except Exception as e:  # noqa: BLE001
+            line = f"kai counts: unavailable ({e!r})"
+        if line:
+            print(line, flush=True)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "lifespan":
+            while True:
+                msg = await receive()
+                if msg["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif msg["type"] == "lifespan.shutdown":
+                    self._kai_report()
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+        if scope["type"] != "http":
+            return
+        path, method = scope["path"], scope["method"]
+        if path == "/health" and method == "GET":
+            if not self.ready:
+                return await self._json(send, 503, {"ok": False, "status": "warming up"})
+            info = {"ok": True, "model": self.model, "kind": self.be.kind, "steps": self.sched.steps, "decisions": self.sched.decisions}
+            if hasattr(self.be, "rereads"):  # jeffan: read-twice passes and their prompt tokens
+                info.update(rereads=self.be.rereads, reread_tokens=self.be.reread_tokens)
+            kai = getattr(self.be, "kai_status", None)  # kai fix M3: resolved switches + usage counts (logging only)
+            if kai is not None:
+                try:
+                    st = kai()
+                except Exception as e:  # noqa: BLE001 - /health must answer
+                    st = {"error": repr(e)}
+                if st:
+                    info["kai"] = st
+            return await self._json(send, 200, info)
+        routes = ("/internal/v1/decide", "/v1/systemone") + (("/v1/classify",) if self.classifier else ())
+        if method != "POST" or path not in routes:
+            return await self._json(send, 404, {"error": {"message": "not found"}})
+        if self.token:
+            got = b""
+            for k, v in scope["headers"]:
+                if k == self.loop_hdr:
+                    got = v
+                    break
+            if not hmac.compare_digest(got, self.token):
+                return await self._json(send, 401, {"error": {"message": "unauthorized"}})
+        if not self.ready:
+            return await self._json(send, 503, {"error": {"message": "warming up"}})
+        if not self.sched.close or self.classifier:
+            return await self._post(path, receive, send)
+        ticket = _Ticket(self.sched)  # lever B5: this request is on its way to the queue from now on
+        try:
+            return await self._post(path, receive, send, ticket)
+        finally:
+            ticket.release()
+
+    async def _post(self, path, receive, send, ticket=None):
+        chunks = []
+        while True:
+            msg = await receive()
+            chunks.append(msg.get("body", b""))
+            if not msg.get("more_body"):
+                break
+        if path == "/v1/classify":
+            try:
+                body = json.loads(b"".join(chunks))
+                if not isinstance(body, dict):
+                    raise ValueError("body must be an object")
+                out = await self.classify(body, sum(map(len, chunks)) > LONG_TEXT)
+            except ValueError as exc:  # also json.JSONDecodeError and the backend's input errors
+                return await self._json(send, 400, {"error": {"message": f"bad request: {str(exc)[:200]}"}})
+            except Exception as exc:  # noqa: BLE001
+                return await self._json(send, 500, {"error": {"message": f"{type(exc).__name__}"}})
+            return await self._json(send, 200, out)
+        try:
+            body = json.loads(b"".join(chunks))
+            questions = body["questions"]
+            state = body["state"]
+            if not isinstance(questions, dict) or not questions:
+                raise ValueError("questions must be a non-empty object")
+            if path == "/internal/v1/decide" and len(questions) != 1:
+                raise ValueError("exactly one question per call")
+            for q in questions.values():
+                if not isinstance(q, dict) or q.get("type") not in ("choice", "noul", "score"):
+                    raise ValueError("bad question type")
+        except Exception as exc:  # noqa: BLE001
+            return await self._json(send, 400, {"error": {"message": f"bad request: {type(exc).__name__}"}})
+        images = body.get("images")
+        if images is not None and images != []:
+            if not getattr(self.be, "supports_images", False):
+                return await self._json(send, 422, {"error": {"message": "this model takes text only"},
+                                                    "code": "unsupported_images", "fallback": "author"})
+            try:
+                from engine.backends.vllm_readout import validate_images
+                validate_images(images)
+                if len(questions) != 1:
+                    raise ValueError("an image request carries exactly one question")
+            except ValueError as exc:
+                return await self._json(send, 422, {"error": {"message": str(exc)}, "code": "invalid_images"})
+        try:
+            if self.classifier:
+                answers, n = await self.decide_fixed(state, questions, sum(map(len, chunks)) > LONG_TEXT)
+            else:
+                answers, n = await self.decide(state, questions, path, sum(map(len, chunks)) > LONG_TEXT, images=images,
+                                               ticket=ticket)
+        except ValueError as exc:  # 422 for a too long prompt of the vLLM-backed models (the reference adapters' status)
+            code = 422 if "maximum context length" in str(exc) else 400
+            return await self._json(send, code, {"error": {"message": str(exc)}})
+        except (KeyError, TypeError) as exc:  # malformed question of a backend that does not wrap its own parsing
+            return await self._json(send, 400, {"error": {"message": f"bad request: {type(exc).__name__}"}})
+        except Exception as exc:  # noqa: BLE001
+            return await self._json(send, 500, {"error": {"message": f"{type(exc).__name__}"}})
+        await self._json(send, 200, {"model": self.model, "answers": answers,
+                                     "usage": {"input_tokens": n, "output_tokens": 0}})
+
+    @staticmethod
+    async def _json(send, code, obj):
+        raw = json.dumps(obj).encode()
+        await send({"type": "http.response.start", "status": code,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(raw)).encode())]})
+        await send({"type": "http.response.body", "body": raw})
+
+
+# ------------------------------------------------------------------------------------------------ manifest check
+def _sha(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(8 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def verify_weights(model_dir: str, manifest_path: str) -> None:
+    """Check the sha256 of the pinned weight files against the release manifest (reax-s1-manifest/1)."""
+    files = json.loads(Path(manifest_path).read_text())["weights"]["files"]
+    out: dict = {}
+
+    def one(name, digest):
+        p = Path(model_dir) / name
+        out[name] = p.is_file() and _sha(p) == digest
+    ts = [threading.Thread(target=one, args=kv) for kv in files.items()]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    bad = [n for n, ok in out.items() if not ok]
+    if bad:
+        sys.exit(f"weights mismatch or missing: {', '.join(sorted(bad))}")
+
+
+# ------------------------------------------------------------------------------------------------ main
+def parse_opts(pairs) -> dict:
+    """`--opt key=value` (value JSON if it parses, else a string) -> backend keyword arguments."""
+    out = {}
+    for p in pairs:
+        k, _, v = p.partition("=")
+        try:
+            out[k.replace("-", "_")] = json.loads(v)
+        except json.JSONDecodeError:
+            out[k.replace("-", "_")] = v
+    return out
+
+
+_ENV_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+
+
+def env_opts(raw: str | None = None) -> dict:
+    """KAI_ENGINE_OPTS (dev variant images): 'key=value;key=value', each value parsed exactly like `--opt` (parse_opts).
+    Unset, empty or only separators -> {}. A malformed item stops the start (a silent typo would measure the wrong engine)."""
+    if raw is None:
+        raw = os.environ.get("KAI_ENGINE_OPTS", "")
+    pairs = [p.strip() for p in raw.split(";")]
+    pairs = [p for p in pairs if p]
+    bad = [p for p in pairs if "=" not in p or not _ENV_KEY.fullmatch(p.partition("=")[0])]
+    if bad:
+        raise SystemExit(f"KAI_ENGINE_OPTS: items must be key=value separated by ';', got {bad!r}")
+    return parse_opts(pairs)
+
+
+def host_knobs() -> dict:
+    """Lever B15 host knobs (dev variant images; unset = no change): KAI_SWITCH_INTERVAL=<seconds> sets
+    sys.setswitchinterval at start (GIL hand-off between the GPU launcher thread and the tokeniser threads; CPython
+    default 0.005); KAI_GC_FREEZE=1 runs gc.collect() + gc.freeze() once after warm-up, so the collector no longer walks
+    the model's long-lived objects at step boundaries."""
+    raw = os.environ.get("KAI_SWITCH_INTERVAL", "").strip()
+    si = None
+    if raw:
+        try:
+            si = float(raw)
+        except ValueError:
+            si = -1.0
+        if not 0 < si <= 1:
+            raise SystemExit(f"KAI_SWITCH_INTERVAL must be seconds in (0, 1], not {raw!r}")
+    gf = os.environ.get("KAI_GC_FREEZE", "").strip()
+    if gf not in ("", "0", "1"):
+        raise SystemExit(f"KAI_GC_FREEZE must be 0 or 1, not {gf!r}")
+    return {"switch_interval": si, "gc_freeze": gf == "1"}
+
+
+def apply_switch_interval(knobs: dict) -> None:
+    if knobs["switch_interval"] is not None:
+        sys.setswitchinterval(knobs["switch_interval"])
+
+
+def apply_gc_freeze(knobs: dict) -> None:
+    if knobs["gc_freeze"]:
+        import gc
+        gc.collect()
+        gc.freeze()
+
+
+def load_backend(name: str, a):
+    from engine import registry
+    try:
+        spec = registry.get(name)
+    except KeyError as exc:
+        raise SystemExit(str(exc.args[0])) from None
+    opts = parse_opts(a.opt)
+    profile = os.environ.get("REAX_PROFILE", "")
+    if profile not in ("", "reference"):
+        raise SystemExit(f"REAX_PROFILE must be 'reference' or unset, not {profile!r}")
+    extra = env_opts()  # dev variant images; {} when KAI_ENGINE_OPTS is unset or empty -> the merge below is unchanged
+    if profile == "reference":  # the engine track v2 reference images: the options the production recipe of this model runs with
+        opts = {**spec.production_opts, **extra, **opts}
+    elif extra:
+        opts = {**extra, **opts}
+    print("engine opts: " + json.dumps({
+        "model": spec.id, "profile": profile, "opts": opts, "kai_engine_opts": os.environ.get("KAI_ENGINE_OPTS"),
+        "env": {k: v for k, v in sorted(os.environ.items())
+                if k.startswith(("PPLX_", "KAI_", "MAM_", "E63_", "R1_", "MXA_", "REAX1_")) and k != "KAI_ENGINE_OPTS"},
+    }, sort_keys=True, default=repr), file=sys.stderr, flush=True)
+    if spec.id == "plumb-4b":
+        from plumb_engine import PlumbBackend
+        kw = dict(opts)
+        if a.batch_tokens:
+            kw["max_batch_tokens"] = a.batch_tokens
+        return PlumbBackend(a.model_dir, compile=a.compile, **kw)
+    if spec.backend_kind == "gguf-cpu" and not a.no_verify:  # pinned weight file (the other models: --manifest)
+        from engine.backends.gguf_cpu import SPECS
+        f = SPECS[spec.id]
+        if not (Path(a.model_dir) / f.file).is_file() or _sha(Path(a.model_dir) / f.file) != f.sha256:
+            sys.exit(f"weights mismatch or missing: {f.file}")
+    try:
+        return registry.build(spec.id, a.model_dir, **opts)
+    except NotImplementedError as exc:
+        raise SystemExit(str(exc)) from None
+
+
+def e63_wanted(model: str) -> bool:
+    """KAI_E63=1 (dev variant): mammoth-1 is served by pjs's E63 engine (engine/e63/: whole-step CUDA graphs, batch-invariant
+    pins, Scheduler63; team image 86.38.238.34/pjs/engine@sha256:4df738e8...). Every other model keeps this server."""
+    if os.environ.get("KAI_E63", "0") != "1":
+        return False
+    from engine import registry
+    try:
+        return registry.get(model).id == "mammoth-1"
+    except KeyError:
+        return False
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default=os.environ.get("REAX_MODEL") or "plumb-4b",
+                    help="registry id or alias (python -m engine.registry); default $REAX_MODEL, else plumb-4b "
+                         "(the engine competition v2 starts one image per model with REAX_MODEL=<id>)")
+    ap.add_argument("--model-dir", default=next((os.environ[v] for v in ("PLUMB_MODEL_DIR", "REAX_MODEL_DIR", "GGUF_MODEL_DIR")
+                                                 if os.environ.get(v)), "/model"))
+    ap.add_argument("--host", default=None, help="default $RUNTIME_HOST or 127.0.0.1 ($RUNTIME_UDS wins over host and port)")
+    ap.add_argument("--port", type=int, default=None, help="default $RUNTIME_PORT or 8101")
+    ap.add_argument("--opt", action="append", default=[], help="backend option key=value (JSON values), repeatable; "
+                    "applied last, over production_opts and $KAI_ENGINE_OPTS")
+    ap.add_argument("--manifest", default=os.environ.get("REAX_MANIFEST", ""), help="release manifest to verify weights against")
+    ap.add_argument("--no-verify", action="store_true", help="skip the weight checks (manifest, pinned GGUF file)")
+    ap.add_argument("--compile", default=os.environ.get("REAX_COMPILE", "1"))
+    ap.add_argument("--batch-tokens", type=int, default=0)
+    ap.add_argument("--max-wait-ms", type=float, default=max_wait_default())
+    ap.add_argument("--no-warmup", action="store_true")
+    a = ap.parse_args(argv)
+    if e63_wanted(a.model):
+        sys.path.insert(0, str(HERE / "e63"))
+        import e63_serve
+        return e63_serve.main()
+
+    token = _token()
+    close, knobs = sched_close_mode(), host_knobs()  # dev switches (lever B5 / B15); unset = the reference behaviour
+    adapt, adapt_s = adapt_from_env()  # rgh f8m MAM_ADAPT; unset = off
+    check_front_switches(close, adapt, os.environ.get("MAM_ENCTHREAD", "0") == "1")
+    apply_switch_interval(knobs)
+    if a.manifest and not a.no_verify and Path(a.manifest).is_file():
+        verify_weights(a.model_dir, a.manifest)
+    startup.mark("python_imports", startup.since_start())
+    backend = load_backend(a.model, a)
+    sched = Scheduler(backend, a.max_wait_ms, close=close, adapt=adapt, adapt_s=adapt_s)
+    app = App(backend, sched, token, "s1-fast" if backend.name == "plumb-4b" else backend.name)
+    app.aliases = ("llm-auto-router",) if getattr(backend, "model_type", "") == "classifier_heads" else ()
+
+    def warm():
+        t0 = time.time()
+        try:
+            if not a.no_warmup and getattr(backend, "serve_warmup", True) and hasattr(backend, "warmup"):
+                backend.warmup()
+        except BaseException:  # noqa: BLE001 - a failed warm-up must stop the container, not leave /health at 503 forever
+            import traceback
+            traceback.print_exc()
+            os._exit(1)
+        apply_gc_freeze(knobs)
+        app.ready = True
+        startup.ready()
+        print(f"ready: {backend.name} ({backend.kind}) warm-up {time.time() - t0:.0f}s", flush=True)
+
+    import uvicorn
+    kw = dict(log_level="warning", access_log=False, lifespan="on", timeout_keep_alive=75)
+    if os.environ.get("RUNTIME_UDS"):
+        kw["uds"] = os.environ["RUNTIME_UDS"]
+    else:
+        kw.update(host=a.host or os.environ.get("RUNTIME_HOST", "127.0.0.1"),
+                  port=a.port or int(os.environ.get("RUNTIME_PORT", "8101")))
+    sched.start(on_ready=warm)
+    uvicorn.run(app, **kw)
+
+
+if __name__ == "__main__":
+    main()

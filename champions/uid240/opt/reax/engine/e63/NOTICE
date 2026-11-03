@@ -1,0 +1,23 @@
+E63 mammoth engine (REAX engine track v2, slot mammoth)
+
+This image is built FROM the REAX Engine mammoth reference image
+ghcr.io/reaxlabs/reax-engine-ref-mammoth@sha256:3080a593060542bccbdaf7cf0c66593fc182d9753b3facd50206df86d93b8588
+(reax-engine 546728669f9179b1d44e3a72dda5125d98de45b9, https://github.com/reaxlabs/reax-engine); its code under /opt/reax and
+its licence files are unchanged.
+
+REAX Engine
+Required Notice: Copyright 2026 productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG, Passau, Germany
+(https://github.com/reaxlabs/reax-engine)
+The REAX Engine code is licensed under the REAX Engine License 1.1 (the MIT License with one additional condition; mining and
+validating on Bittensor subnet 92 are exempt). See the reference image's LICENSE / NOTICE.
+
+/opt/e63/e63_engine.py and /opt/e63/e63_serve.py are derived from the REAX Engine (engine/pplx_engine.py PplxEngine and its
+kernels, engine/serve.py) and stay under the REAX Engine License 1.1 for the parts that come from it. Changes by E63:
+CUDA-graph replay of the whole layer stack per (token, sequence) bucket with static per-step index buffers, a fixed-tile
+Triton GEMM for the GatedDeltaNet in_proj_b|a projection, the readout on a fixed row count, attention with num_splits=1,
+pinned FLA kernel configurations, one packed [state | question] sequence per decision (prefix_bidir), and a step scheduler.
+
+Third-party runtime parts used unchanged from the base image: PyTorch (BSD-3-Clause), flash-linear-attention / fla-core 0.5.2
+(MIT, Copyright 2023-2026 Songlin Yang, Yu Zhang, Zhiyuan Li), Triton (MIT), Hugging Face transformers / safetensors
+(Apache-2.0), uvicorn (BSD-3-Clause). Model: baselabs/mammoth-1 (MIT); the qev prompt contract port in the reference
+(engine/qev_contract.py) is Apache-2.0, (c) the OneJev authors. Model weights are NOT included.

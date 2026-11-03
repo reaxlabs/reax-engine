@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.title="reax-engine-ref-rune" \
       org.opencontainers.image.description="REAX engine track reference engine for Surogate Rune 26B-A4B v3 / s1-pro pool (vLLM 0.30.0, deterministic pool flags, no weights inside)" \
       org.opencontainers.image.source="https://github.com/reaxlabs/reax-engine" \
       org.opencontainers.image.revision="${GIT_SHA}" \
-      org.opencontainers.image.licenses="LicenseRef-REAX-Engine-1.1 AND Apache-2.0" \
+      org.opencontainers.image.licenses="MIT AND Apache-2.0" \
       ai.reax.engine.models="rune,s1-pro" \
       ai.reax.engine.commit="${GIT_SHA}"
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 HF_HUB_DISABLE_TELEMETRY=1 \

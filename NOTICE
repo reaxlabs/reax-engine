@@ -3,7 +3,15 @@ Required Notice: Copyright 2026 productivity-boost.com Betriebs UG (haftungsbesc
 The licensor's own code is licensed under the MIT License (see LICENSE), from the commit that introduced this
 notice on. Earlier versions stay available under the licence they were published with: up to and including commit
 ffa8398af512a0ff4694fbfec3cfc16fe874cc28 the Apache License, Version 2.0; from tag license-1.0 up to this change the
-REAX Engine License 1.0/1.1.
+REAX Engine License 1.0/1.1. The licensor's own code from the Engine v2 line (branches fusion/engine-composite-open-*
+and mirror/*, first published there under License 1.1) is licensed under the MIT License as merged here; the commits
+on those branches stay available under License 1.1 as well.
+
+champions/uid240/ is the engine source of SN92 UID 240, copied unchanged from
+https://github.com/masterdev777/sn92-uid240-engine (commit 42c543a35f108eb4296c7924789f6fd9e35efca3). It keeps its own
+licences: Apache-2.0 (its LICENSE) and, for its parts built on the REAX Engine (opt/reax, opt/reax-r1), the REAX Engine
+License 1.1 (its LICENSE-REAX-ENGINE-1.1); third-party notices in its licenses/ and opt/*/NOTICE files. The MIT License
+of this repository does not apply to that directory. Credits: champions/uid240/README.md and PROVENANCE.md.
 
 The third-party parts listed below stay under their own licences; the Apache License 2.0 text is in
 LICENSES/Apache-2.0.txt. Files that contain copied or adapted third-party code say so in their header.

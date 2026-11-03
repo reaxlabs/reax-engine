@@ -1,0 +1,1046 @@
+{
+ "version": 1,
+ "what": "E64 variant 'rms' = e59-blink:v8 pins.json (F1) with these autotune picks flipped to the runner-up: rms; Inductor CachingAutotuner picks of the Blink reference (vLLM 0.30.0 ref-prod) started alone on an idle RTX PRO 6000 Blackwell Server Edition (E58 job A2 refA, F1) + E59 exact keys for the per-M-tile graph (s7, oracle 2048/2048)",
+ "by_key": {
+  "csz24fdmsmizxgwaom6fugdabjrwdevsb3swsptmcweyrppa43dv.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "ceoetajbgevr3652fnx6juczzljhtcywi6uqsmxe6ffv3c7ztevt.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cuy754y4juntasm6ajk3thbasrn22cxhwfjrip5he543ogrusykk.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cray4d422bk7bqtf3cld2gqxomtsboysboq6ct44cstqs3tuaklz.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "clz6uyf3grj4h4h3rzihuimwf2cjsfzmxv7yxcxrpfk6xg7i3xnd.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cugpcm4vghhakpd3kv3qs5m374tjof7grnzxtlgkdytltmfdkpwq.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 4096,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "crc3qoy3kdby525wtwbhhmlkjhkysrhgknd3si5lrjf5ltl24k7d.py#0": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 128,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "c3s7wrueqejdnkiu5lryacp6loxfytphts572bgeh4qp3e2pvjbm.py#0": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 128,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "cuk3umxhyk4j4ka3lucx3qtjms7gooq6vxhcxvr4cwzfauxca3xb.py#0": {
+   "XBLOCK": 1024,
+   "num_warps": 4,
+   "num_stages": 1
+  },
+  "cl7i5zss6onubtvbigmuixqjib5yy5oengayzjz3ws72bp6rgo7g.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c5b3aavhphxsn4q7w36gl766kgk3pdgrar2zxaxil2ubuguehvg7.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c6h4o3ckrl3ni5uu6vcysfvbvuihh3zanso7sbm7og2rxj5bakrx.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 512,
+   "num_warps": 4,
+   "num_stages": 1
+  },
+  "cy755afahnztlfnltrzbb4kqqcscsespazpbvweeyyc4ueeuy2fb.py#0": {
+   "XBLOCK": 8,
+   "R0_BLOCK": 512,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cckx4jostbhe2h7dbsvluykzkbk7ub3neyu2f24ufvitfp23dxui.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c5rzmu5jqhovq2c3owi3kzznb7ylmpdc7ullubbcpjwezxkpopiq.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cx5ftnnxdopdcx4xgzy673rafgsosm2ajrcpedubcrejkzwtgbq3.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "crc3qoy3kdby525wtwbhhmlkjhkysrhgknd3si5lrjf5ltl24k7d.py#1": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 64,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "c3s7wrueqejdnkiu5lryacp6loxfytphts572bgeh4qp3e2pvjbm.py#1": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 64,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "chfbrdlxuvbuvlrj66vt63aif4gqi6ww5ktznp6iorsp326prfwi.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c7s7rmkqic66l23gla6lqsmn432a32ojgvqjkra5zhgrbmypimjm.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c46ze3642bafwgxclgklxh6zbiy4p2k3h4uqr54vbm5nigasx5tk.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cpmqhjxzo3cuvss252nri2x4sjfx2o6vgs4ffuvk5zsmkrfo47ra.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cgrxvg3a77hut2fqlj3hvykyd5dho7z4ssess7rj7dup5adeolut.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cqltnak7xip7srq7bzk6sknmx5osbzq3ou6bv6exhfn27yeovkso.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 4096,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cyzea5r4azp4ovexdlvgte3vdvyg3koplcwh3bjq2i5t5i2g7pin.py#0": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 128,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "cr4n6kljbfmk2rpqbuqbzp4tymr7abektiur3upccizqgera45sx.py#0": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 128,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "crsogyrtpef35ax2welubfhpbxsejunazplyilttqxadzswxlnjz.py#0": {
+   "XBLOCK": 1024,
+   "num_warps": 4,
+   "num_stages": 1
+  },
+  "cxgap4xkbxwfi624waq6labtjpdkio2xlabmmtonkkezsjsr7atx.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c6lszj7pz47lnhla4rxgev7fwkmjfb2bmcwjvuv4xd3d2vpc3pq7.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cbgcrmsrbouf4opyysymfzjwuteqy2yyfmu474oqbgebefx6un3m.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 512,
+   "num_warps": 4,
+   "num_stages": 1
+  },
+  "c67flw2ubxyo4vehcy7p45jfq473sgczu7roalkoz5f7zuen2xvp.py#0": {
+   "XBLOCK": 8,
+   "R0_BLOCK": 512,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "ce7mbss3npiq3axihsdrw3dvnr6njtdqbzuw2mqnj25eevhsex6a.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cth4wgtcsmm73sxpsy2yd3gnqyftbtfc4bex4ew5lzywqavdgicr.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cj36zzlyrqrsuzbbjw4kjflaulznluy4ocla4325whawvzrabhch.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cyzea5r4azp4ovexdlvgte3vdvyg3koplcwh3bjq2i5t5i2g7pin.py#1": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 64,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "cr4n6kljbfmk2rpqbuqbzp4tymr7abektiur3upccizqgera45sx.py#1": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 64,
+   "num_warps": 2,
+   "num_stages": 1
+  }
+ },
+ "instances": [
+  {
+   "key": "csz24fdmsmizxgwaom6fugdabjrwdevsb3swsptmcweyrppa43dv.py#0",
+   "name": "triton_",
+   "ints": [
+    131072,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 32,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "ceoetajbgevr3652fnx6juczzljhtcywi6uqsmxe6ffv3c7ztevt.py#0",
+   "name": "triton_",
+   "ints": [
+    65536,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 32,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cuy754y4juntasm6ajk3thbasrn22cxhwfjrip5he543ogrusykk.py#0",
+   "name": "triton_",
+   "ints": [
+    65536,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cray4d422bk7bqtf3cld2gqxomtsboysboq6ct44cstqs3tuaklz.py#0",
+   "name": "triton_",
+   "ints": [
+    131072,
+    65536,
+    65536
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 128,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "clz6uyf3grj4h4h3rzihuimwf2cjsfzmxv7yxcxrpfk6xg7i3xnd.py#0",
+   "name": "triton_",
+   "ints": [
+    131072,
+    65536
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 128,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cugpcm4vghhakpd3kv3qs5m374tjof7grnzxtlgkdytltmfdkpwq.py#0",
+   "name": "triton_red_fused_rms_norm_t_0",
+   "ints": [
+    8192,
+    2816
+   ],
+   "pick": {
+    "XBLOCK": 1,
+    "R0_BLOCK": 4096,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 4096,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 1024,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "crc3qoy3kdby525wtwbhhmlkjhkysrhgknd3si5lrjf5ltl24k7d.py#0",
+   "name": "triton_red_fused__to_copy_add_cat_clamp_index_select_mul_reciprocal_rms_norm_split_split_with_sizes_sub_unsqueeze_view_1",
+   "ints": [
+    131072,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 128,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c3s7wrueqejdnkiu5lryacp6loxfytphts572bgeh4qp3e2pvjbm.py#0",
+   "name": "triton_red_fused_add_cat_index_select_mul_rms_norm_split_split_with_sizes_sub_unsqueeze_view_2",
+   "ints": [
+    65536,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 128,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cuk3umxhyk4j4ka3lucx3qtjms7gooq6vxhcxvr4cwzfauxca3xb.py#0",
+   "name": "triton_poi_fused_gelu_mul_slice_t_1",
+   "ints": [
+    17301504
+   ],
+   "pick": {
+    "XBLOCK": 1024,
+    "num_warps": 4,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 1024,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cl7i5zss6onubtvbigmuixqjib5yy5oengayzjz3ws72bp6rgo7g.py#0",
+   "name": "triton_red_fused_3",
+   "ints": [
+    131072,
+    65536
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 128,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c5b3aavhphxsn4q7w36gl766kgk3pdgrar2zxaxil2ubuguehvg7.py#0",
+   "name": "triton_",
+   "ints": [
+    131072,
+    512
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 32,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c6h4o3ckrl3ni5uu6vcysfvbvuihh3zanso7sbm7og2rxj5bakrx.py#0",
+   "name": "triton_",
+   "ints": [
+    16384,
+    512
+   ],
+   "pick": {
+    "XBLOCK": 1,
+    "R0_BLOCK": 512,
+    "num_warps": 4,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 16,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cy755afahnztlfnltrzbb4kqqcscsespazpbvweeyyc4ueeuy2fb.py#0",
+   "name": "triton_",
+   "ints": [
+    16384,
+    512
+   ],
+   "pick": {
+    "XBLOCK": 8,
+    "R0_BLOCK": 512,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 16,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cckx4jostbhe2h7dbsvluykzkbk7ub3neyu2f24ufvitfp23dxui.py#0",
+   "name": "triton_",
+   "ints": [
+    131072,
+    16384,
+    16384
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c5rzmu5jqhovq2c3owi3kzznb7ylmpdc7ullubbcpjwezxkpopiq.py#0",
+   "name": "triton_",
+   "ints": [
+    131072,
+    16384
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cx5ftnnxdopdcx4xgzy673rafgsosm2ajrcpedubcrejkzwtgbq3.py#0",
+   "name": "triton_red_fused_3",
+   "ints": [
+    131072,
+    16384
+   ],
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "crc3qoy3kdby525wtwbhhmlkjhkysrhgknd3si5lrjf5ltl24k7d.py#1",
+   "name": "triton_red_fused__to_copy_add_cat_clamp_index_select_mul_reciprocal_rms_norm_split_split_with_sizes_sub_unsqueeze_view_1",
+   "ints": [
+    131072,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 64,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 64,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c3s7wrueqejdnkiu5lryacp6loxfytphts572bgeh4qp3e2pvjbm.py#1",
+   "name": "triton_red_fused_add_cat_index_select_mul_rms_norm_split_split_with_sizes_sub_unsqueeze_view_2",
+   "ints": [
+    65536,
+    256
+   ],
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 64,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 64,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  }
+ ],
+ "e64_flipped_keys": [
+  "cugpcm4vghhakpd3kv3qs5m374tjof7grnzxtlgkdytltmfdkpwq.py#0",
+  "cqltnak7xip7srq7bzk6sknmx5osbzq3ou6bv6exhfn27yeovkso.py#0"
+ ]
+}

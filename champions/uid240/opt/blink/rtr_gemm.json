@@ -1,0 +1,2 @@
+{"what": "blink_rtr.py router GEMM table (E59 p11: 198/198 bit-identical to torch.mm/cuBLASLt under vLLM's batch-invariant settings): [max rows, blink_rgemm config]; -1 = torch.mm",
+ "shapes": {"128,2816": [[1280, 5], [4096, 1], [1000000, -1]]}}

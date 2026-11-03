@@ -1,0 +1,68 @@
+
+
+bj-b9 port (v2c, 29 Oct 2026), with credit to team ruj: team ruj's exact XDIET and UNIFY host levers from their bj/blink4 line B round 4 iteration 2, dashboard #415 (team-engine:j415,
+86.38.238.34/ruj/engine@sha256:e90d018d4bf2728c6c2513e9f9fc569e5649468d728ee22df18a8438bbbca23a), and their bj/blink5 line B
+round 5, dashboard #419 (team-engine:j419, 86.38.238.34/ruj/engine@sha256:de8efcdc05b87a4f84109a6348d9e1daa8bdbd6300c522959e76b72332a006f9,
+BLINK ONLY on pjs's v1y #409), Apache-2.0. Taken: /opt/blink/blink_host.py = team ruj's #419 file (sha256
+12a8d01e60a15a2a0ebd9e1be7443d6e8456c12d7b74e679fdd3e9f8c755474a; it replaces the bj-b7 file above: team ruj's #415 file
+(bj-b8: XDIET, LATEFREE and SWITCH_US added to bj-b7's levers) plus UNIFY and UNIFY's FUSEW condition) plus marked hunks of
+ours: our bj-b8 port's live A/B keys (host_nometa / host_dsamp / host_fusew / host_nodraft, read only when BLINK_TUNE_FILE
+is set) and states.py pin; UNIFY acts only on vLLM 0.30.0 ced6857's vllm/v1/core/kv_cache_utils.py (sha256-pinned); a
+start-log line with the KV-cache layout; a docstring correction. /opt/blink/sitecustomize.py: #419's BLINK_HOST_UNIFY
+import trigger (and #415's import condition) on our K2 file.
+Enabled in this image (blink slot of /opt/e62/dispatch.py; the code default stays 0):
+  BLINK_HOST_XDIET=1   execute_model before the graph launch: RequestState.add_request without the per-request zero_()
+                       of the empty draft-token row (NODRAFT; vLLM 0.30.0 code, Apache-2.0, marked), and the request-
+                       state (total_len, all_token_ids, num_computed_tokens) and block-table staged writes in ONE launch
+                       of vLLM's own multi-group write kernel at the request state's point (FUSEW) instead of four; same
+                       values to the same addresses on the same stream, before any reader (#415).
+  BLINK_HOST_UNIFY=1   the engine core sets vLLM's own scheduler_config.disable_hybrid_kv_cache_manager before it
+                       builds the KV cache: one KV-cache group (all 30 layers, one block table) instead of six, so the
+                       scheduler, the prefix cache, the block pool and the model runner's block tables do their
+                       per-request work once. On vLLM 0.30.0 ced6857 the group has 16-token blocks and prefix-cache
+                       hits land on 16-token boundaries (32 before). The sliding-window layers still attend within
+                       their 1,024-token window (vLLM's Triton kernel masks by the layer's window; its KV tiles do not
+                       depend on the block size). KV capacity unchanged (~162k tokens).
+Present but not enabled: BLINK_HOST_LATEFREE (#415; waits for a gVisor yield measurement), BLINK_HOST_SWITCH_US
+(development), BLINK_HOST_LEAN (E64's BLINK_LEAN_OUT covers its main cost) and BLINK_HOST_DFREE (E64's BLINK_DEFER_FREE covers it).
+Same KV values in other blocks; answers bit-identical (gate: 8192 pinned items = pinR, c16 / c1 re-runs = c64 and hedge off = hedge-on main in all 10 B starts of our pre-registered 20-start A/B vs v2b (this image's files, dispatch defaults; +5.44 % blink c16, 90 % CI +3.35..+7.57) and in 3 earlier starts of the same files (bxB1-bxB3)). Team ruj's own bj-b8 and bj-b9 notes (they
+describe #415 and #419, which set LATEFREE, XDIET, NOMETA, DSAMP, LEAN and UNIFY in their image ENV) follow verbatim:
+bj-b8 (team ruj, bj/blink4 line B round 4 iteration 2, 2026-10-28; BLINK ONLY) on pjs's v1y (#409,
+86.38.238.34/pjs/engine@sha256:f16f7fe7eeb3e2e8780ad5188f03267864f7d4b3bb2ac9fda1527730667ca183). The engine and every
+file not listed here are pjs's; credit pjs. Changed files:
+  /opt/blink/blink_host.py   (team ruj, new in bj-b7; extended here) exact host-side levers of the engine core
+  /opt/blink/sitecustomize.py = pjs's v1y file + one block that imports blink_host.py when a BLINK_HOST_* switch is set
+Image ENV added: BLINK_HOST_LATEFREE=1, BLINK_HOST_XDIET=1, BLINK_HOST_NOMETA=1, BLINK_HOST_DSAMP=1, BLINK_HOST_LEAN=1.
+  LATEFREE (new): pjs's deferred KV-block frees (BLINK_DEFER_FREE, E64 b2) run right after the NEXT graph launch, in the
+    GPU's busy time, instead of right after the outputs are queued, where they held the GIL while the output thread
+    wanted to send the outputs; only which free KV blocks the next requests receive changes (placement).
+  XDIET (new): execute_model before the launch without the per-request zeroing of the empty draft-token rows (NODRAFT)
+    and with the request-state and block-table staged writes in ONE launch of vLLM's own multi-group write kernel
+    (FUSEW) instead of four; same values to the same addresses.
+  NOMETA, DSAMP, LEAN: bj-b7's levers (#406), see blink_host.py.
+Every answer of every screen equals pjs's v1y's (1,024 timed + 24 c1 + 32 c1 re-run items per config, runsc); the
+answers rely on the engine's batch invariance and on its answers not depending on KV placement or prefix-cache hits
+(pjs's E72 L1 relies on the same). Apache-2.0 like pjs's files; vLLM (Apache-2.0) code in blink_host.py is marked.
+
+bj-b9 (team ruj, bj/blink5 line B round 5, 2026-10-28; BLINK ONLY) = bj-b8 (#415) + UNIFY, on pjs's v1y (#409,
+86.38.238.34/pjs/engine@sha256:f16f7fe7eeb3e2e8780ad5188f03267864f7d4b3bb2ac9fda1527730667ca183). The engine and every
+file not listed here are pjs's; credit pjs. Changed files (vs v1y):
+  /opt/blink/blink_host.py   (team ruj; bj-b8's file + UNIFY) exact host-side levers of the engine core
+  /opt/blink/sitecustomize.py = pjs's v1y file + one block that imports blink_host.py when a BLINK_HOST_* switch is set
+Image ENV added: bj-b8's BLINK_HOST_LATEFREE=1, BLINK_HOST_XDIET=1, BLINK_HOST_NOMETA=1, BLINK_HOST_DSAMP=1,
+BLINK_HOST_LEAN=1, and BLINK_HOST_UNIFY=1 (new).
+  UNIFY (new): one KV-cache group instead of six. The engine core sets vLLM's own
+    scheduler_config.disable_hybrid_kv_cache_manager before it builds the KV cache, so vLLM's
+    unify_hybrid_kv_cache_specs allocates the 25 sliding-window layers like the 5 full-attention layers (32-token
+    blocks for every token; the layers still compute sliding-window attention, window 1,024) and all layers share one
+    block table: the scheduler, the prefix cache, the block pool and the model runner's block tables do their
+    per-request work once instead of six times. The frontend -> engine-core hop of the last request of a step is
+    mostly the engine core's GIL busy with this per-request scheduling (bj/blink5 ROUND1.md); UNIFY shortens it.
+    KV values and attention tiles are unchanged (the Triton attention tile size does not depend on the KV block
+    size); prefix-cache hits stay on 32-token boundaries; the KV cache holds ~159k tokens as before.
+Every answer of every screen equals bj-b8's / pjs's v1y's (1,024 timed + 24 c1 + 32 c1 re-run items per config, runsc);
+the answers rely on the engine's batch invariance and on its answers not depending on KV placement or prefix-cache hits
+(pjs's E72 L1 relies on the same). Apache-2.0 like pjs's files; vLLM (Apache-2.0) code in blink_host.py is marked.
+Correction (ours) to the notes above: on vLLM 0.30.0 ced6857 UNIFY's one KV-cache group has 16-token blocks, not 32
+(vLLM promotes the sliding-window specs with the full-attention layers' own block size, 16, and no page-size
+unification follows), so prefix-cache hits land on 16-token boundaries, not 32.

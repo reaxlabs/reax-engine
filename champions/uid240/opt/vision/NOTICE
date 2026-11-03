@@ -1,0 +1,10 @@
+Blink vision engine (E60/E61), REAX engine track v2. Own server code; runs on vLLM 0.30.0 (Apache-2.0, vLLM contributors).
+patch_vllm.py applies the same Gemma4 vision-encoder budget change as the REAX v2 vision reference image
+(engine/vision_budget.py of reax-engine, REAX Engine License 1.1: MIT with one condition; SN92 mining exempt;
+Copyright 2026 productivity-boost.com Betriebs UG (haftungsbeschraenkt) & Co. KG, Passau, Germany).
+The decision prompt and readout follow the Blink / Rune "decisions v1" protocol as the reference serves it.
+vfuse.py (fused Gemma4 vision-tower element-wise kernels) is ours (Apache-2.0); it reproduces the operations of
+Hugging Face transformers' Gemma4 modeling code (Apache-2.0, The HuggingFace Team) bit for bit.
+blink_bi.py / blink_gemm.cu (per-M dense GEMM configs, CUTLASS sm80 bf16 GEMM) are ours (Apache-2.0, from our Blink
+engine); blink_gemm.cu is compiled against NVIDIA CUTLASS headers (BSD-3-Clause, NVIDIA Corporation) shipped in the
+vLLM image.

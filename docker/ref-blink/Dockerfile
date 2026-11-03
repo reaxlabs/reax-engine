@@ -14,7 +14,7 @@ LABEL org.opencontainers.image.title="reax-engine-ref-blink" \
       org.opencontainers.image.description="REAX engine track v2 reference engine for Blink v0.3 26B-A4B NVFP4 (vLLM 0.30.0, no weights inside)" \
       org.opencontainers.image.source="https://github.com/reaxlabs/reax-engine" \
       org.opencontainers.image.revision="${GIT_SHA}" \
-      org.opencontainers.image.licenses="LicenseRef-REAX-Engine-1.1 AND Apache-2.0" \
+      org.opencontainers.image.licenses="MIT AND Apache-2.0" \
       ai.reax.engine.models="blink,vision" \
       ai.reax.engine.commit="${GIT_SHA}"
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 HF_HUB_DISABLE_TELEMETRY=1 \

@@ -1,0 +1,853 @@
+{
+ "version": 1,
+ "what": "Inductor CachingAutotuner picks + combo-kernel decisions of the Jeffan reference (vLLM 0.30.0, fp8-kv-colo-bi) started alone on an idle RTX PRO 6000 Blackwell Server Edition (E61 r1, variant J2)",
+ "by_key": {
+  "cgcekyqh2fuu2jxo47aio4l2tqm3kofwix2qt7piuazrugsa7xaw.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "czkgcz73yy3xltz3ine2nbidnwf2risawqap376ocxqsfrivpy66.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cqpysgvb3s53qe2abwf3ne6ypckfo436fe63qalfnkn7t4iwrb3z.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cetfcks746byqrh2km2hlk23xxyswpjhvfdcjgonupe5zi3e6hog.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cretrxsnxtdvidkytcabol54jcszhs5gu3pqmbxleh6e7tlpvmod.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cikduakh746r5jwqro72cdntxmbiutvohr7cv6uo3247ms2htcdo.py#0": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 128,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "cakgaesnlb2jp6jjsptlxqqf554lnjr5bfk65juwyeoydrmhjpxs.py#0": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 128,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "cs3w3zkxfibb4udj2an4uudklsolxqnwfsv4bnj3ldcc3aiahwmv.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 8192,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cgpobg3yh3kxe3xpf6ph6naqwlf6ewwcojmg27pbmaikp3hifgka.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 1024,
+   "num_warps": 8,
+   "num_stages": 1
+  },
+  "c2v2oqp4fwgrzvajsigmvl7efce65ia4jezw2e3gpdzhyobubvxh.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "cjugliip4cfdcmqjmsyh7fbqaueci266j7hj2bfpx54ft3oho3z6.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "ced25ca5swpzrvzan5mmzracmze7qv7xm7u6kqyakcbjsbsj5r3o.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 512,
+   "num_warps": 4,
+   "num_stages": 1
+  },
+  "cwufkuqm6gr4j2y7qfdp7ebadfzginnkqf62x32do7lvthtwgr6k.py#0": {
+   "XBLOCK": 8,
+   "R0_BLOCK": 512,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "ctepsdlr5wrgpezbqizz4fvcomgzlqofgbzsqy3z4rovahmch5rj.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "crnr6hqpo6wzib7hn225r6fpx2mlfxkdvzb4knacwmeuhjfpc5nk.py#0": {
+   "XBLOCK": 64,
+   "R0_BLOCK": 64,
+   "num_warps": 16,
+   "num_stages": 1
+  },
+  "c3hqvhrw4uqnb5cml5o6tgryaulhwsyqrzcdgqjsrymjg4nexmrv.py#0": {
+   "XBLOCK": 1,
+   "R0_BLOCK": 16384,
+   "num_warps": 32,
+   "num_stages": 1
+  },
+  "cikduakh746r5jwqro72cdntxmbiutvohr7cv6uo3247ms2htcdo.py#1": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 64,
+   "num_warps": 2,
+   "num_stages": 1
+  },
+  "cakgaesnlb2jp6jjsptlxqqf554lnjr5bfk65juwyeoydrmhjpxs.py#1": {
+   "XBLOCK": 2,
+   "R0_BLOCK": 64,
+   "num_warps": 2,
+   "num_stages": 1
+  }
+ },
+ "instances": [
+  {
+   "key": "cgcekyqh2fuu2jxo47aio4l2tqm3kofwix2qt7piuazrugsa7xaw.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 32,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "czkgcz73yy3xltz3ine2nbidnwf2risawqap376ocxqsfrivpy66.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 32,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cqpysgvb3s53qe2abwf3ne6ypckfo436fe63qalfnkn7t4iwrb3z.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cetfcks746byqrh2km2hlk23xxyswpjhvfdcjgonupe5zi3e6hog.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 128,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cretrxsnxtdvidkytcabol54jcszhs5gu3pqmbxleh6e7tlpvmod.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 128,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cikduakh746r5jwqro72cdntxmbiutvohr7cv6uo3247ms2htcdo.py#0",
+   "name": "triton_red_fused__to_copy_add_cat_clamp_index_select_mul_reciprocal_rms_norm_split_split_with_sizes_sub_unsqueeze_view_1",
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 128,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cakgaesnlb2jp6jjsptlxqqf554lnjr5bfk65juwyeoydrmhjpxs.py#0",
+   "name": "triton_red_fused_add_cat_index_select_mul_rms_norm_split_split_with_sizes_sub_unsqueeze_view_2",
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 128,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cs3w3zkxfibb4udj2an4uudklsolxqnwfsv4bnj3ldcc3aiahwmv.py#0",
+   "name": "triton_red_fused__to_copy_abs_clamp_cutlass_scaled_mm_div_max_mul_reciprocal_unsqueeze_view_0",
+   "pick": {
+    "XBLOCK": 1,
+    "R0_BLOCK": 8192,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 8192,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 1024,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cgpobg3yh3kxe3xpf6ph6naqwlf6ewwcojmg27pbmaikp3hifgka.py#0",
+   "name": "triton_red_fused__to_copy_abs_clamp_cutlass_scaled_mm_div_gelu_max_mul_reciprocal_slice_unsqueeze_2",
+   "pick": {
+    "XBLOCK": 1,
+    "R0_BLOCK": 1024,
+    "num_warps": 8,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 32768,
+     "num_warps": 32,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 1024,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 16384,
+     "num_warps": 32,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c2v2oqp4fwgrzvajsigmvl7efce65ia4jezw2e3gpdzhyobubvxh.py#0",
+   "name": "triton_red_fused_4",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 256,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 128,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cjugliip4cfdcmqjmsyh7fbqaueci266j7hj2bfpx54ft3oho3z6.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 32,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "ced25ca5swpzrvzan5mmzracmze7qv7xm7u6kqyakcbjsbsj5r3o.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 1,
+    "R0_BLOCK": 512,
+    "num_warps": 4,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 16,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cwufkuqm6gr4j2y7qfdp7ebadfzginnkqf62x32do7lvthtwgr6k.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 8,
+    "R0_BLOCK": 512,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 16,
+     "R0_BLOCK": 32,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "ctepsdlr5wrgpezbqizz4fvcomgzlqofgbzsqy3z4rovahmch5rj.py#0",
+   "name": "triton_",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "crnr6hqpo6wzib7hn225r6fpx2mlfxkdvzb4knacwmeuhjfpc5nk.py#0",
+   "name": "triton_red_fused_4",
+   "pick": {
+    "XBLOCK": 64,
+    "R0_BLOCK": 64,
+    "num_warps": 16,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 512,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 8,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 512,
+     "num_warps": 4,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 64,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 512,
+     "num_warps": 16,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 64,
+     "R0_BLOCK": 4,
+     "num_warps": 8,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 8,
+     "R0_BLOCK": 256,
+     "num_warps": 16,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "c3hqvhrw4uqnb5cml5o6tgryaulhwsyqrzcdgqjsrymjg4nexmrv.py#0",
+   "name": "triton_red_fused__to_copy_abs_clamp_cutlass_scaled_mm_div_max_mul_reciprocal_unsqueeze_view_0",
+   "pick": {
+    "XBLOCK": 1,
+    "R0_BLOCK": 16384,
+    "num_warps": 32,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 16384,
+     "num_warps": 32,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 1,
+     "R0_BLOCK": 1024,
+     "num_warps": 8,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cikduakh746r5jwqro72cdntxmbiutvohr7cv6uo3247ms2htcdo.py#1",
+   "name": "triton_red_fused__to_copy_add_cat_clamp_index_select_mul_reciprocal_rms_norm_split_split_with_sizes_sub_unsqueeze_view_1",
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 64,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 64,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  },
+  {
+   "key": "cakgaesnlb2jp6jjsptlxqqf554lnjr5bfk65juwyeoydrmhjpxs.py#1",
+   "name": "triton_red_fused_add_cat_index_select_mul_rms_norm_split_split_with_sizes_sub_unsqueeze_view_2",
+   "pick": {
+    "XBLOCK": 2,
+    "R0_BLOCK": 64,
+    "num_warps": 2,
+    "num_stages": 1
+   },
+   "cands": [
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 128,
+     "num_warps": 2,
+     "num_stages": 1
+    },
+    {
+     "XBLOCK": 2,
+     "R0_BLOCK": 64,
+     "num_warps": 2,
+     "num_stages": 1
+    }
+   ]
+  }
+ ],
+ "combo": [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true
+ ]
+}

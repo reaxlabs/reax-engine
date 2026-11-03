@@ -1,0 +1,155 @@
+E62 dm-all decision engine image (REAX engine track v2, SN92): one image, one engine per model, chosen by REAX_MODEL.
+Our own server code (Apache-2.0) around the stock vLLM 0.30.0 image (Apache-2.0, vLLM contributors).
+
+/opt/blink  (slot blink, Blink v0.3 26B-A4B NVFP4 text): our engine. blink_gemm.cu, blink_moegemm.cu and
+            blink_rgemm.cu (ours, Apache-2.0) are compiled against NVIDIA CUTLASS headers (BSD-3-Clause, NVIDIA
+            Corporation) shipped in the vLLM image. blink_actq.cu (ours, Apache-2.0) contains device functions
+            copied from vLLM 0.30.0 (csrc/libtorch_stable/activation_kernels.cu and quantization/fp4/
+            nvfp4_utils.cuh, nvfp4_experts_quant.cu; Apache-2.0, the vLLM contributors and NVIDIA CORPORATION).
+            blink_read.py calls vLLM's own sampler kernels. No REAX Engine code.
+/opt/jeffan (slot jeffan, Jeffan-31b-1710): our engine; the prompt renderer is the checkpoint's own (read from /model
+            at start). No REAX Engine code.
+/opt/vision (Blink vision engine, not declared by this image): see /opt/vision/NOTICE. Its patch_vllm.py applies the
+            same Gemma4 vision-encoder budget change as the REAX v2 vision reference image (engine/vision_budget.py of
+            reax-engine, REAX Engine License 1.1: MIT with one condition; SN92 mining exempt; Copyright 2026
+            productivity-boost.com Betriebs UG (haftungsbeschraenkt) & Co. KG, Passau, Germany); the patched
+            vllm/model_executor/models/gemma4_mm.py changes behaviour only when REAX_VISION_ENCODER_BUDGET=total10
+            (set for the vision engine only). vfuse.py reproduces operations of Hugging Face transformers' Gemma4
+            modeling code (Apache-2.0, The HuggingFace Team).
+The decision prompt and readout of the Blink engines follow the Blink / Rune "decisions v1" protocol as the reference
+serves it.
+Kernel configuration tables (pins.json, pins_rms.json, pins_f4.json, bi_tiles.json, moe_gemm.json, rtr_gemm.json, alt/*.json,
+gemm_table.json) are tile / launch
+configurations of compiled kernels: no weights, scales or calibration statistics. Every tensor is derived at start
+from the read-only weights at /model.
+/opt/e62    (ours, Apache-2.0): dispatch.py (entrypoint), NOTICE, KERNELS.md (every native, its source and build).
+/opt/jeffan (v1r): team ruj's tree from their board image #348 (see /opt/jeffan/RUJ-CHANGES.md) on pjs's Jeffan
+            engine: lever G (own CUTLASS SM120 FP8 GEMM tiles, 14 configurations, /opt/jeffan/gemm, jef_levers.py),
+            the code-row readout (JEF_ROWS), batch formation (JEF_ASYNC=0, JEF_BF_MS) and the re-read threshold hedge
+            (lever H, JEF_HEDGE), credit team ruj (Apache-2.0; CUTLASS headers BSD-3-Clause, NVIDIA Corporation).
+            The two .so are E62's build of ruj's unchanged sources with the deterministic method (build_fp8gemm.py +
+            -frandom-seed, stripped; /opt/jeffan/KERNELS.md; a second independent build reproduced both byte for byte). gemm_table.json's informational "source" field (a path on ruj's build
+            host) is replaced by a description. E62 merge edits: merge_j6r.py (J6: JEF_PAR_REREAD=1 runs ruj's
+            JEF_SPEC2 joint re-read only for a decision that is alone, and lever H applies there too) and merge_j3.py
+            (JEF_CG_MODE=<vLLM cudagraph_mode>, unset by default). alt/cr.json: E65's "close-race first" pin table
+            (not the default).
+/opt/jeffan (v1u): jef_levers.py is team ruj's file from their board image #373 (lever SB, the per-step token budget
+            JEF_STEP_TOK, and one-group batch formation JEF_BF_ALL; its NV4 hooks are off), credit team ruj
+            (Apache-2.0), on top of their #348 batch formation (BF) and re-read threshold hedge (H); merge step
+            merge_sb.py. The native libraries stay E62's build of #348's sources.
+/opt/jeffan (v1u3): E62 lever KV16 (jef_kv16.py, JEF_KV16=1; merge step merge_kv16.py adds its import to
+            sitecustomize.py): prefix-cache hits at 16 tokens (full-attention pages padded); found independently
+            by team ruj as well (board image #382).
+/opt/jeffan (v1w): team ruj's lever FE (board image #392, bj-g5c: front-end without thread hops; jeffan_engine.py,
+            merge step merge_fe.py; JEF_FE=1, JEF_UVLOOP=1) and their hedge window 0.03 (#391, bj-g5b; JEF_HEDGE),
+            credit team ruj (Apache-2.0).
+/opt/jeffan (v1x): E73 (pjs) levers on the Jeffan engine. SA, step alignment (JEF_STEP_ALIGN=512,640,768,896,1024;
+            merge_align.py edit of jef_levers.py): when at least 3 requests and between 512 tokens and the step budget of
+            new tokens are pending (prefix-cache hits excluded), that step's token budget is the largest listed FULL CUDA-graph
+            size not above them, so the step runs its graph without padding rows; the rest of the last read is chunked
+            into the next step by vLLM's chunked prefill, as SB does at the budget. The budget is restored right after
+            scheduling, so the BF wait still tests JEF_STEP_TOK. Scheduling only: the same bits (batch-invariant kernels;
+            a chunked read's earlier K/V are read back from the FP8 cache exactly as written; reads stay below the
+            1,024-token sliding window). LLP, last-layer row pruning (JEF_LLP, jef_e73lev.py, merge_llp.py) and LLPA
+            (JEF_LLP_ATTN): merged, off in this image (inert unless set).
+/opt/blink (v1y): E71's lever T1X (BLINK_MOE_W16=1: the 16-consumer-warp instances of E69's bmoe69 build of team
+            ruj's bmoe kernels, W16 build bmoe69.cu 96994a4b / bmoe69.so 4b2a2734; BLINK_MOE_GEMM_SMS=0 with the per-size
+            w13 SM grid table moe_gemm_t1x.json (BLINK_MOE_GEMM_TABLE); E69's v3fe blink_moe.py), credit team ruj
+            (Apache-2.0), see /opt/blink/NOTICE.bj. Exact: kbit71 and 8192 pinned items byte-identical.
+/opt/blink (v1y): E64's b1b2 (blink_out.py, BLINK_LEAN_OUT=1: no telemetry-only walk in the output update;
+            BLINK_DEFER_FREE=1: a finished request's KV blocks are freed after the step's outputs are queued) and E72's
+            host-path stack Y in blink_core.py (BLINK_E72_LEANCACHE: prompt blocks registered in the prefix cache only up
+            to the hit + 32 tokens; BLINK_E72_ISL: no redundant full-sequence admission pre-check for whole-sequence
+            steps; BLINK_E72_GPUWAIT: the core waits on the step's copy event near its expected end) plus vLLM's own
+            VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=1 (O2). Host scheduling / bookkeeping only: the same bits.
+/opt/jeffan (v1z): GQ: team ruj's one-pass GELU(tanh)-mul + FP8 quant kernel (board #399, image bj-g6a; jef_gq.py and the
+            jef_levers.py hook, ported by E73 with merge_gq.py; JEF_GQ=1): the compiled graph's generated GELU-quant kernel runs
+            as the same Triton statements in one pass over the gate_up row; same q and scale bits (max is order-independent).
+            LLP / LLPA (E73, jef_e73lev.py; JEF_LLP=1, JEF_LLP_ATTN=1): the last decoder layer computes query rows, attention,
+            o_proj and MLP only for each request's last prompt token (K/V still written for every token); bit-identical
+            (kchk73_llp.py, kchk73_llpa.py, gate73).
+/opt/jeffan (v2a): BW: the batch-formation window JEF_BF_MS 10 -> 20 ms (the post-step wait of team ruj's one-group batch
+            formation, #373), measured by E62 (p7, on E73's tree): +1.8 % computed tokens/s, BF timeouts 66 % -> 0 %.
+            Scheduling only: the same bits (xcmp 256/256; gate on this image: E74 vtj vs vtj-w).
+/opt/blink (v2a): K1's dense GEMM lever (BLINK_K1=1): /opt/blink/blink_k1.py, gemm/k1gemm.so built from gemm/k1gemm.cu
+            (= /opt/blink/k1gemm.cu; ours, Apache-2.0, no CUTLASS code; build lines in KERNELS.md, two independent builds
+            byte-identical) and the per-M tile table k1_tiles.json: listed dense bf16 GEMM buckets run on K1's persistent
+            TMA + mma.sync kernel, every output element the same single fp32 chain as vLLM's batch-invariant matmul (=
+            blink_gemm.so); the MLP gate_up grid is capped to the SMs the MoE w13 GEMM leaves free (188 minus the w13 SMs of
+            BLINK_MOE_GEMM_TABLE). Hooks in blink_bi.py / blink_par.py (the GLU hook stays inactive without BLINK_K1_GLU).
+            Exact: kcheck x2, 8192/8192 pinned items and c16 3072/3072 identical (K1's ABBA, 4 holds).
+/opt/blink (v2a): team ruj's bj-b7 host levers DSAMP and NOMETA (dashboard #406, team-engine:j406; bj/blink4 line B
+            round 4): /opt/blink/blink_host.py (team ruj's file plus our live-A/B hunk) and #406's sitecustomize.py
+            import block, ported with credit to team ruj (Apache-2.0; see /opt/blink/NOTICE.bj). Blink slot:
+            BLINK_HOST_DSAMP=1 (sampler adds and staged writes after the FULL-graph launch) and BLINK_HOST_NOMETA=1 (no
+            attention-metadata objects in FULL replays). Host work only; answers bit-identical (8192 pinned items = pinR).
+/opt/blink (v2b): K2's exact reduction lever (BLINK_RED=1): /opt/blink/blink_red.py hooks Inductor's CachingAutotuner.run
+            for the Blink residual-add + RMSNorm reduction kernels triton_red_fused_add_bi_mm_mul_rms_norm_0 / _2 (matched
+            by their generated source) and runs bit-exact one-pass CUDA replicas from gemm/blink_red.so, built from
+            gemm/blink_red.cu (= /opt/blink/blink_red.cu; ours, Apache-2.0, no third-party code; build line in KERNELS.md,
+            two independent builds byte-identical); the dead buf22 store is skipped. Exact: 17,398 byte tests against the
+            engine cubins; 8192/8192 pinned items and c16 3584/3584 identical (K2's engine A/B R1 vs Q0).
+/opt/blink (v2c): team ruj's bj-b9 host lever UNIFY (dashboard #419, team-engine:j419; bj/blink5 line B round 5):
+            /opt/blink/blink_host.py (team ruj's #419 file, which carries their #415 levers, plus our marked hunks: live
+            A/B keys, states.py and kv_cache_utils.py pins, KV-layout log) and #419's BLINK_HOST_UNIFY trigger in
+            sitecustomize.py, ported with credit to team ruj (Apache-2.0; see /opt/blink/NOTICE.bj). Blink slot:
+            BLINK_HOST_UNIFY=1 (one KV-cache group of 16-token blocks instead of six; sliding-window attention
+            unchanged) and team ruj's #415 lever XDIET, BLINK_HOST_XDIET=1 (dashboard #415, team-engine:j415: no
+            zeroing of empty draft-token rows; request-state and block-table staged writes in one launch); #415's
+            LATEFREE / SWITCH_US stay unset. Host work only; answers bit-identical (8192 pinned items = pinR).
+/opt/blink (v2d-m0): V1's picture path in the Blink engine (P-mode, BLINK_VISION=1): /opt/blink/blink_pmode.py (picture
+            steps run the eager vision reference's numerics; start-up asserts and a census of the first picture step),
+            /opt/blink/blink_vis.py (the request path of E61's /opt/vision/vision_engine.py) and edits of blink_core.py,
+            blink_engine.py and sitecustomize.py; ours, Apache-2.0, no compiled parts. It uses E61's exact vision-tower
+            kernels and encoder graphs (/opt/vision/vfuse.py, VIS_FUSE=1) and bi_tiles.json. Picture answers
+            bit-identical to the vision reference (ref-blink@97d06a91: 2744/2744 items, V1's M0 run); text answers as
+            v2c. The image declares blink, jeffan and vision; the vision slot is served by /opt/blink.
+/opt/vision (v2d-m1b): V2's A1/A2 for the picture path (blink slot VIS_ATTN=1, VIS_UNPAD=1): /opt/vision/vattn.py,
+            vattn.cu and gemm/vattn.so (built from gemm/vattn.cu = vattn.cu; build line in KERNELS.md) and vfuse.py
+            (e61-vision:v5's + VIS_ATTN / VIS_UNPAD):
+            vattn.py / vattn.cu (exact Gemma4 vision-tower attention, VIS_ATTN / VIS_UNPAD) are ours (Apache-2.0, pjs team).
+            vattn.cu reproduces, bit for bit, the forward arithmetic of PyTorch's memory-efficient attention kernel
+            (aten/src/ATen/native/transformers/cuda/mem_eff_attention, BSD-3-Clause, Copyright (c) Meta Platforms, Inc. and
+            affiliates and the PyTorch contributors), which derives from xformers (BSD-3-Clause, Copyright (c) Facebook, Inc. and
+            its affiliates). It was written from that public source and from the compiled torch binary's instruction sequence, and
+            contains none of their code.
+/opt/vision (v2d-m2): V3's E34 bundle for the picture path (blink slot VIS_E5=1, VIS_E3=1, VIS_E4=1): /opt/vision/vfuse.py
+            (V2's + E5 / E3 / E4), vis_ops.cu and gemm/vis_ops.so (built from gemm/vis_ops.cu = vis_ops.cu with the
+            CUTLASS examples/45_dual_gemm headers in /opt/vision/vis_dual/; build line in KERNELS.md), vis_e3.json and
+            the VIS_E* import condition in /opt/vision/sitecustomize.py:
+            vfuse.py levers E5 / E3 / E4 (V3; VIS_E5, VIS_E3, VIS_E4, each default off) and vis_ops.cu are ours (Apache-2.0, pjs team).
+            - E5 (vfuse.py) reproduces the operations of vLLM 0.30.0's Gemma4ForConditionalGeneration._process_image_input
+              (Apache-2.0, the vLLM contributors) and Hugging Face transformers 5.17.0's Gemma4 vision modules (Apache-2.0, The
+              HuggingFace Team). A few lines of the pooling-weight construction follow transformers' Gemma4VisionPooler.
+            - vis_ops.cu reproduces, bit for bit, three things:
+              - vLLM's batch-invariant mean kernel, model_executor/determinism/batch_invariant.py (Apache-2.0). We decoded its
+                reduction order from the compiled Triton output and contain none of its code.
+              - PyTorch's tanh-GELU (aten/src/ATen/native/cuda/ActivationGeluKernel.cu, BSD-3-Clause, the PyTorch contributors).
+              - HF's Gemma4RMSNorm and axial RoPE (Apache-2.0).
+            - vis_ops.cu is compiled against NVIDIA CUTLASS headers (BSD-3-Clause, Copyright (c) 2017 - 2026 NVIDIA CORPORATION &
+              AFFILIATES). These are the base image's CUTLASS 4.5.0, plus the dual-GEMM headers of CUTLASS examples/45_dual_gemm,
+              shipped unmodified in vis_dual/ with their BSD-3-Clause license headers.
+/opt/blink (v2d-m3): V1's picture path m1: v2b's K1 / MoE / LAST / LABEL_HEAD levers inside picture steps, P-only K1 tile
+            rows (k1_tiles_p.json), FULL CUDA graphs for the picture-step LM forward (blink_pmg.py), pipelined picture
+            groups and the warm-up fix (blink_pmode.py, blink_vis.py, blink_core.py, blink_engine.py, sitecustomize.py;
+            ours, Apache-2.0, no compiled parts). Blink slot: BLINK_PM_K1 / MOE / LAST / HEAD / GRAPHS = 1, BLINK_PM_LOOP=pipe.
+/opt/blink/pins_rms.json (v1m and later): E64's blink pin table for the board reference's start variant (BLINK_PIN_TABLE).
+/opt/blink (v1t): + team ruj's bmoe MoE kernels (#362; in gemm/blink_moegemm.so / blink_moegemm.cu, moe_gemm.json,
+            blink_moe.py's FUSE switch; ported by E64 with credit, see /opt/blink/NOTICE.bj) and E66's RMS-flip start-variant
+            hedge (blink_hedge.py, with edits to blink_pin.py / blink_core.py / blink_engine.py; BLINK_HEDGE=1;
+            v1u: E62 hedge scheduling fix EX-1, v1u2: EX-1c: an alt copy whose main was launched without it is launched
+            on its own once it has waited alone BLINK_HEDGE_LONE_MS = 20 ms; v1u2 (review C1): a request that chunked
+            prefill left running is launched at once; answers unchanged); (v1u)
+            E64's B7 (blink_last.py with hooks in blink_bi.py / blink_par.py and a re-entrancy guard in blink_read.py's
+            import hook; BLINK_LAST=1): last decoder layer: Q projection, o_proj, dense MLP and routed MoE on each
+            request's last row only (K/V on all rows; batches of 96 rows or more); v1u2 (review C2): the row index
+            stays referenced until the MoE join (merge_b7idx.py).
+/opt/blink (v1u2): team ruj's #376 frontend connection balancing (blink_engine.py: BLINK_FE_BALANCE=1; their bj/blink
+            round 3, see /opt/blink/NOTICE.bj), ported by E64 (bm7c) with credit; E62 merged it with E66's hedge
+            changes to the same file (3-way merge).
+/opt/blink (v1v): team ruj's #386 fused MoE head (bj-m1: blink_moe.py, BLINK_MOE_FHEAD; see /opt/blink/NOTICE.bj),
+            ported by E69 with credit, plus E69's MoE switches (blink_moe.py, gemm/bmoe69.so from bmoe69.cu: team
+            ruj's bmoe kernels + E69's knobs, Apache-2.0).
+/opt/blink/blink_core.py (v1p) is team ruj's #343 overlay of our batch pipelining (Apache-2.0; see /opt/blink/NOTICE.bj),
+            merged with credit. E64 (v1p): blink speed levers B1 (graph sizes), B3 (blink_read.py), B5 (blink_actq.cu);
+            (v1q) PRIO (blink_par.py: the MoE aux stream at high priority, BLINK_PAR_PRIO).

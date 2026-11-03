@@ -1,0 +1,68 @@
+REAX Engine
+Required Notice: Copyright 2026 productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG, Passau, Germany (https://github.com/reaxlabs/reax-engine)
+The licensor's own code is licensed under the REAX Engine License 1.1 (see LICENSE): the MIT License with one additional
+condition (commercial use by an organisation that, together with its affiliates, has more than 10 employees or more than
+USD 5 million annual revenue requires a separate written licence, info@decisionmodels.io; mining and validating on
+Bittensor subnet 92 are exempt). Versions up to and including commit ffa8398af512a0ff4694fbfec3cfc16fe874cc28 were
+released under the Apache License, Version 2.0 and stay available under it. Commits published under the REAX Engine
+License 1.0 (tags license-1.0 to license-1.1) may also be used under License 1.1.
+
+The third-party parts listed below stay under their own licences; the Apache License 2.0 text is in
+LICENSES/Apache-2.0.txt. Files that contain copied or adapted third-party code say so in their header.
+
+This product serves the model perplexity-ai/pplx-decider-v1.1-27b (Apache License 2.0, Copyright Perplexity AI;
+derived from Qwen/Qwen3.8-27B, Apache License 2.0). Model weights are NOT included; they are downloaded from
+Hugging Face by tools/setup.sh. The model's own NOTICE applies to the weights.
+
+engine/pplx_engine.py contains prompt construction and answer shaping adapted from the model's reference
+implementation (source/src/autojev/model.py in perplexity-ai/pplx-decider-v1.1-27b, Apache License 2.0).
+Modifications: reimplemented as a standalone prefill-only engine (packed variable-length batches, FP8 GEMMs,
+fused kernels, continuous-batching HTTP server).
+
+Runtime dependencies (not bundled): PyTorch (BSD-3-Clause), flash-linear-attention (MIT), Triton (MIT),
+Hugging Face transformers / safetensors / huggingface_hub (Apache-2.0).
+No affiliation with or endorsement by Perplexity AI or Alibaba Cloud is implied.
+
+engine/d3_contract.py vendors the prompt/answer contract of vllm-sr/d3 (Apache License 2.0, Copyright 2026 vLLM Semantic Router
+Team; upstream/d3/LICENSE and NOTICE). Built on Qwen/Qwen3.8-27B (Apache-2.0).
+
+engine/backends/vllm_readout.py reimplements, for serving through vLLM, the Quyet prompt v2 and question parsing of the `quyet`
+package (Apache License 2.0, "Quyet by Chinh Nguyen", https://huggingface.co/chinhnc/Quyet-1.0-Large; keep that NOTICE when
+redistributing the model) and the Surogate decisions v1 prompt of the reference Rune adapter (model: surogate/rune-26b-a4b, derived
+from Google Gemma 4, Apache License 2.0). No weights are included.
+
+Plumb-4B (s1-fast): engine/plumb_engine.py serves crh225/plumb-4b (Apache License 2.0; Qwen3.5-4B base, Apache License 2.0;
+author's JevK5 runtime and calibration by alibiserikbay, Apache License 2.0). The decision prompt and readout in
+engine/plumb_engine.py (payload layout, system instruction, option lettering, calibration temperature use) are adapted from
+the author's jevk5/runtime.py (https://github.com/allebee/jevk5, Apache License 2.0), which follows SemIf (MIT).
+Modifications: the chat template is rendered as a plain string and tokenised with the Rust tokenizer (token ids verified
+identical), and the forward pass is the packed varlen engine of engine/pplx_engine.py.
+Model weights are NOT included in any image or source tree.
+
+engine/qev_contract.py ports OneJev qev @81ce62f + the baselabs checkpoints' serve.patch
+(qev/prompt.py, qev/answers.py, qev/engine.py), Apache-2.0, copyright the OneJev authors.
+Modifications: standalone prompt/token-split/answer contract; no author runtime imported.
+Mammoth-1 weights: baselabs/mammoth-1 (MIT declaration in the pinned model card);
+upstream/mammoth/LICENSE and NOTICE document the absent upstream licence file; weights not bundled.
+
+engine/backends/vllm_readout.py includes the Jeffan-31b-1710 dm_decision_engine code-rendering,
+read-twice policy and answer contract, reimplemented for vLLM (Apache-2.0).
+Model: tattrongvu/Jeffan-31b-1710, base google/gemma-4-31B-it (Apache-2.0);
+upstream/jeffan/LICENSE and NOTICE. No model weights bundled.
+
+engine/vision_budget.py patches the pinned vLLM 0.30.0 Gemma4 vision encoder budget
+(Apache-2.0, vLLM contributors) to offer an environment-controlled total-memory budget.
+
+Teammates' code (SN92 team, adopted verbatim or near-verbatim, each behind its own switch, default off):
+  * rgh (team image 86.38.238.34/rgh/engine@sha256:22e5182d7968fcf07a1ef66d16ae49054c3384f9f5a14d7e03c82bc13928c085,
+    mammoth stack f8m): engine/f8g.py, engine/libf8g.so, engine/f8g.cu, engine/f8common.cuh, engine/gdnchain.py (its
+    Triton kernel body is copied from flash-linear-attention 0.5.2 fla/ops/common/chunk_delta_h.py, MIT, Copyright (c)
+    2023-2026 Songlin Yang, Yu Zhang, Zhiyuan Li) and the MAM_* levers in engine/pplx_engine.py, engine/serve.py and
+    engine/backends/qwen35.py (REAX Engine code, modified). Sources and build line: engine/KERNELS.md.
+  * pjs (team image 86.38.238.34/pjs/engine@sha256:4df738e88df8257d2e3dc69085998d5a6a548e73df3f7cf821a70fc31e7e28af, E63):
+    engine/e63/ (e63_engine.py, e63_serve.py, fla_pins.json, KERNELS.md, NOTICE = pjs's own notice), derived from the REAX
+    Engine (REAX Engine License 1.1); lines changed by kai are marked `kai`. Started only with KAI_E63=1 for mammoth-1.
+
+engine/libnv4g.so (rgh's NVFP4 GEMM, switch MAM_NV4, default off) is compiled from engine/nv4g.cu and engine/nv4_dispatch.cu
+against the header-only NVIDIA CUTLASS 4.5.0 templates (BSD-3-Clause, Copyright (c) 2017 - 2026 NVIDIA CORPORATION &
+AFFILIATES; the licence text is in LICENSES/BSD-3-Clause-CUTLASS.txt). Build line and checksums: engine/KERNELS.md.
